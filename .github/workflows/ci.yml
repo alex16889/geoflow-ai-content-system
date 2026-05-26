@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -22,9 +22,9 @@ jobs:
           coverage: none
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       - name: Install frontend dependencies
@@ -43,10 +43,13 @@ jobs:
           php -l router.php
           php -l sitemap.php
           php -l robots.php
+          php -l llms.php
           php -l theme-preview.php
 
       - name: Unit guardrail tests
-        run: php tests/unit_growth_guardrails.php
+        run: |
+          php tests/unit_growth_guardrails.php
+          php tests/unit_seo_geo_ops.php
 
       - name: Build Tailwind assets
         run: npm run build:tailwind
