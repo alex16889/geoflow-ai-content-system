@@ -1,0 +1,53 @@
+module.exports = {
+  content: [
+    './*.php',
+    './admin/**/*.php',
+    './includes/**/*.php',
+    './themes/**/*.php',
+    './assets/js/**/*.js'
+  ],
+  safelist: [
+    'bg-green-100',
+    'text-green-800',
+    'bg-purple-100',
+    'text-purple-800',
+    'bg-blue-100',
+    'text-blue-800',
+    'bg-yellow-100',
+    'text-yellow-800',
+    'bg-gray-100',
+    'text-gray-800',
+    'bg-red-100',
+    'text-red-800',
+    'bg-emerald-50',
+    'text-emerald-700',
+    'border-emerald-200',
+    'bg-blue-50',
+    'text-blue-700',
+    'border-blue-200',
+    'bg-red-50',
+    'text-red-700',
+    'border-red-200',
+    'bg-gray-50',
+    'text-gray-700',
+    'border-gray-200',
+    'text-green-600',
+    'text-yellow-600',
+    'text-amber-600',
+    'hover:text-amber-800',
+    'hover:text-green-800',
+    'text-blue-600',
+    'font-medium',
+    'text-gray-500',
+    'hover:text-gray-700',
+    'bg-blue-600',
+    'text-white',
+    'shadow-sm',
+    'text-gray-600',
+    'hover:bg-gray-100'
+  ],
+  theme: {
+    extend: {}
+  },
+  plugins: []
+};

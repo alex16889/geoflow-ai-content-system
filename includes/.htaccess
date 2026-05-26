@@ -1,0 +1,9 @@
+# 禁止访问includes目录
+Order Deny,Allow
+Deny from all
+
+# 禁止执行PHP文件（从外部访问）
+<Files "*.php">
+    Order Deny,Allow
+    Deny from all
+</Files>

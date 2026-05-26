@@ -1,0 +1,166 @@
+server {
+    listen 8080;
+    server_name _;
+
+    root /var/www/html;
+    index index.php;
+
+    charset utf-8;
+    client_max_body_size 25m;
+    server_tokens off;
+    absolute_redirect off;
+
+    access_log /dev/stdout;
+    error_log /dev/stderr warn;
+
+    location = /nginx-health {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location = /admin {
+        return 301 /${ADMIN_BASE_PATH}/;
+    }
+
+    location ~ ^/admin/(.*)$ {
+        return 301 /${ADMIN_BASE_PATH}/$1$is_args$args;
+    }
+
+
+    location = /${ADMIN_BASE_PATH}/ai-config-simple.php {
+        return 301 /${ADMIN_BASE_PATH}/ai-configurator.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/dashboard-simple.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/login-new.php {
+        return 301 /${ADMIN_BASE_PATH}/$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/minimal-test.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/simple-test.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/tasks-safe.php {
+        return 301 /${ADMIN_BASE_PATH}/tasks.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/test-admin.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/test-dashboard.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/test-fixes.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/test-navigation.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/verify-fixes.php {
+        return 301 /${ADMIN_BASE_PATH}/dashboard.php$is_args$args;
+    }
+
+
+    location = /${ADMIN_BASE_PATH}/login-simple.php {
+        return 301 /${ADMIN_BASE_PATH}/;
+    }
+
+    location = /${ADMIN_BASE_PATH}/tasks-new.php {
+        return 301 /${ADMIN_BASE_PATH}/tasks.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/authors-new.php {
+        return 301 /${ADMIN_BASE_PATH}/authors.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/articles-new.php {
+        return 301 /${ADMIN_BASE_PATH}/articles.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/materials-new.php {
+        return 301 /${ADMIN_BASE_PATH}/materials.php$is_args$args;
+    }
+
+    location = /${ADMIN_BASE_PATH}/ai-config-new.php {
+        return 301 /${ADMIN_BASE_PATH}/ai-configurator.php$is_args$args;
+    }
+
+
+    location = /${ADMIN_BASE_PATH} {
+        return 301 /${ADMIN_BASE_PATH}/;
+    }
+
+    location ^~ /${ADMIN_BASE_PATH}/ {
+        try_files $uri $uri/ /router.php?$query_string;
+    }
+
+
+    location ~ ^/(?:includes|bin|docker|docs|data)/ {
+        return 404;
+    }
+
+    location ~ ^/admin/includes/ {
+        return 404;
+    }
+
+    location ~ ^/themes/.+\.php$ {
+        return 404;
+    }
+
+    location ~ ^/uploads/.*\.(?:php|phtml|phar)$ {
+        return 404;
+    }
+
+    location ~ /\. {
+        return 404;
+    }
+
+    location /assets/ {
+        try_files $uri =404;
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800";
+    }
+
+    location /themes/ {
+        try_files $uri =404;
+        expires 1d;
+        add_header Cache-Control "public, max-age=86400";
+    }
+
+    location /uploads/ {
+        try_files $uri =404;
+        expires 1d;
+        add_header Cache-Control "public, max-age=86400";
+    }
+
+    location / {
+        try_files $uri $uri/ /router.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT $document_root;
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_pass php:9000;
+        fastcgi_read_timeout 300;
+        fastcgi_send_timeout 300;
+        fastcgi_buffering on;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+    }
+}

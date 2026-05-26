@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_pgsql, curl, mbstring
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Open-source release audit
+        run: sh bin/git/check-open-source-release.sh
+
+      - name: PHP syntax check
+        run: |
+          find admin includes api bin -name '*.php' -print0 | xargs -0 -n 1 php -l
+          php -l index.php
+          php -l article.php
+          php -l category.php
+          php -l archive.php
+          php -l router.php
+          php -l sitemap.php
+          php -l robots.php
+          php -l theme-preview.php
+
+      - name: Unit guardrail tests
+        run: php tests/unit_growth_guardrails.php
+
+      - name: Build Tailwind assets
+        run: npm run build:tailwind
+
+      - name: Dependency audit
+        run: npm audit --audit-level=moderate

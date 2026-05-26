@@ -1,0 +1,8 @@
+- [x] Add runtime site override and ownership helpers to site context
+- [x] Scope task create/edit forms, option lists, and reference validation
+- [x] Scope task start/stop/status/execute admin endpoints
+- [x] Make AI generation resolve and write content under the task site
+- [x] Make article/task service reference validation site-aware
+- [x] Run local syntax and two-site workflow validation
+- [x] Deploy to remote and verify service health
+- [x] Update Obsidian project record with final commands and remaining risks

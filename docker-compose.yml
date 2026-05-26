@@ -1,0 +1,122 @@
+name: geo-system-docker
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: geo-system-postgres
+    command: postgres -c timezone=${TZ:-Asia/Shanghai}
+    environment:
+      POSTGRES_DB: "${DB_NAME:-geo_system}"
+      POSTGRES_USER: "${DB_USER:-geo_user}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      TZ: "${TZ:-Asia/Shanghai}"
+      PGTZ: "${TZ:-Asia/Shanghai}"
+    ports:
+      - "127.0.0.1:${DB_EXPOSE_PORT:-15432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-geo_user} -d ${DB_NAME:-geo_system}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: web
+    image: geo-system:web
+    container_name: geo-system-web
+    init: true
+    ports:
+      - "${HOST_PORT:-18080}:8080"
+    environment:
+      DB_DRIVER: "${DB_DRIVER:-pgsql}"
+      DB_HOST: "${DB_HOST:-postgres}"
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-geo_system}"
+      DB_USER: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      APP_PORT: 8080
+      SITE_URL: "http://localhost:${HOST_PORT:-18080}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY:-dev-secret-change-me}"
+      REQUIRE_STRONG_APP_SECRET: "${REQUIRE_STRONG_APP_SECRET:-false}"
+      ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ./:/var/www/html
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8080/') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scheduler
+    image: geo-system:scheduler
+    container_name: geo-system-scheduler
+    profiles: ["scheduler"]
+    init: true
+    environment:
+      DB_DRIVER: "${DB_DRIVER:-pgsql}"
+      DB_HOST: "${DB_HOST:-postgres}"
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-geo_system}"
+      DB_USER: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      CRON_INTERVAL: "${CRON_INTERVAL:-60}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY:-dev-secret-change-me}"
+      REQUIRE_STRONG_APP_SECRET: "${REQUIRE_STRONG_APP_SECRET:-false}"
+      ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ./:/var/www/html
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scheduler
+    image: geo-system:worker
+    container_name: geo-system-worker
+    profiles: ["scheduler"]
+    init: true
+    command: ["php", "/var/www/html/bin/worker.php"]
+    environment:
+      DB_DRIVER: "${DB_DRIVER:-pgsql}"
+      DB_HOST: "${DB_HOST:-postgres}"
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-geo_system}"
+      DB_USER: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY:-dev-secret-change-me}"
+      REQUIRE_STRONG_APP_SECRET: "${REQUIRE_STRONG_APP_SECRET:-false}"
+      ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ./:/var/www/html
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  pgdata:

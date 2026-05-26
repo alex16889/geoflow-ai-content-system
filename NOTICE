@@ -1,0 +1,18 @@
+GEOFlow
+Copyright 2026 Yao Jingang
+
+This product includes software developed as part of the GEOFlow project.
+Licensed under the Apache License, Version 2.0.
+
+Derivative distribution notice
+------------------------------
+This distribution preserves the original GEOFlow attribution and includes
+substantial downstream modifications by Alex in 2026.
+
+Major downstream modifications include multi-site management, site isolation,
+site cloning, DataForSEO keyword import, search discovery endpoints, multi-provider
+search submission queues, content quality gates, API spend guardrails, admin UI
+polish, local static assets, and deployment/security hardening.
+
+The original upstream author and project are not responsible for downstream
+changes in this distribution unless explicitly stated by the upstream project.

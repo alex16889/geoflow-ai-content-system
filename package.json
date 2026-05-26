@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "build:tailwind": "BROWSERSLIST_IGNORE_OLD_DATA=1 tailwindcss -c tailwind.config.js -i ./assets/css/tailwind.input.css -o ./assets/vendor/tailwind/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

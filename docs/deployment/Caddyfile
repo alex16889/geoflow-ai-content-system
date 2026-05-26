@@ -1,0 +1,59 @@
+# GEO网站系统 - Caddy配置文件
+# 商用级别配置
+
+# 本地开发环境（禁用自动HTTPS）
+{
+    auto_https off
+}
+
+localhost:8080 {
+    # 网站根目录
+    root * "/Users/laoyao/AI Coding/Tool/GEO网站系统"
+
+    # 日志配置
+    log {
+        output file "/Users/laoyao/AI Coding/Tool/GEO网站系统/logs/caddy_access.log" {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+
+    # 启用压缩
+    encode gzip zstd
+
+    # 安全头
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # 隐藏敏感文件
+    @hidden {
+        path */.*
+        path */备份/*
+        path */logs/*
+        path */data/db/*
+    }
+    respond @hidden 404
+
+    # 静态文件缓存
+    @static {
+        path *.css *.js *.jpg *.jpeg *.png *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot
+    }
+    header @static Cache-Control "public, max-age=31536000"
+
+    # PHP处理（使用TCP连接到PHP-FPM）
+    php_fastcgi 127.0.0.1:9000 {
+        read_timeout 300s
+        write_timeout 300s
+        dial_timeout 3s
+    }
+
+    # 启用文件服务器
+    file_server
+}
+

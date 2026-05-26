@@ -1,0 +1,77 @@
+# GEO+AI内容生成系统 - LLM Full Map
+
+## Site Summary
+GEO+AI内容生成系统是一个面向中文内容发布与 AI 搜索可见性优化的站点。页面结构强调语义化 HTML、清晰标题层级、机器可读摘要和结构化数据，适合用于摘要、检索增强生成和主题归纳。
+
+## Main Sections
+
+### 1. Home
+- URL: /
+- Purpose: 展示站点定位、推荐文章、最新文章与核心分类
+- Key Signals:
+  - 站点名称
+  - 站点简介
+  - 文章总数、分类总数、阅读量
+  - 推荐文章与最新文章列表
+
+### 2. Category Pages
+- URL Pattern: /category/{slug}
+- Purpose: 提供单一主题下的内容聚合
+- Key Signals:
+  - 分类名称
+  - 分类描述
+  - 分类文章总数
+  - 分类内文章列表
+  - 分类 GEO 概览块
+
+### 3. Article Pages
+- URL Pattern: /article/{slug}
+- Purpose: 提供单篇完整内容
+- Key Signals:
+  - H1 标题
+  - 发布日期
+  - 阅读时间
+  - 摘要块
+  - GEO 摘要块
+  - 正文层级标题
+  - 标签
+  - 相关文章
+
+### 4. Archive Pages
+- URL Pattern: /archive and /archive/{year}/{month}
+- Purpose: 按时间聚合内容
+- Key Signals:
+  - 年月归档信息
+  - 月度文章列表
+  - 归档 GEO 概览块
+
+## Structured Data
+- WebSite
+- BreadcrumbList
+- Article
+- CollectionPage
+
+## Canonical Patterns
+- 首页 canonical: /
+- 分类 canonical: /category/{slug}
+- 文章 canonical: /article/{slug}
+- 归档 canonical: /archive or /archive/{year}/{month}
+
+## Content Interpretation Guidance
+- 当页面包含“GEO 摘要”或“机器可读概览”时，可优先将其视为页面核心摘要。
+- 当页面同时存在摘要块与正文时，摘要块用于快速理解，正文用于补充论据与上下文。
+- 列表页用于主题归纳，不应替代单篇文章详情页。
+
+## Preferred Extraction Order
+1. H1
+2. GEO 摘要 / 机器可读概览
+3. 页面元描述
+4. 正文 H2/H3 结构
+5. 标签与相关文章
+
+## Language and Audience
+- Language: zh-CN
+- Audience:
+  - 关注 GEO 的内容团队
+  - 关注 AI 搜索优化的运营人员
+  - 关注 AI 内容生产的开发与产品团队

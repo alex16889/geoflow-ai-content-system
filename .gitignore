@@ -1,0 +1,61 @@
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Node/Tailwind local dependencies
+node_modules/
+npm-debug.log*
+
+# Runtime logs
+logs/*
+!logs/.htaccess
+bin/logs/*
+*.log
+*.pid
+*.pid.lock
+*.flag
+
+# Runtime database and local backups
+data/db/
+data/backups/
+*.db
+*.db-*
+*.db.*
+*.sqlite
+*.sqlite-*
+
+# Local runtime markers
+logs/.docker-ready
+data/login_attempts.json
+
+# Runtime uploads
+uploads/images/
+uploads/knowledge/
+uploads/tmp/
+
+# Local docs snapshot repo
+docs/git/repo/
+
+# Local git automation state
+bin/git/state/
+docs/git/state/
+
+# Temporary exports and backups
+*.bak
+*.tmp
+*.temp
+tmp-*.md
+tmp-*.json
+tmp-*.txt
+output/
+.playwright-cli/
+
+# Local GEOFlow CLI config
+.geoflow.json
+
+# Local agent configuration
+.codex/

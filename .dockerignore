@@ -1,0 +1,13 @@
+.DS_Store
+.git
+.gitignore
+.claude
+docs
+docs/archived
+docs/backups
+data/db/*
+logs
+uploads
+node_modules
+tmp
+*.log

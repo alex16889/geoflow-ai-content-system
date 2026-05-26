@@ -1,0 +1,173 @@
+name: geo-system-docker
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: geo-system-postgres
+    command: postgres -c timezone=${TZ:-Asia/Shanghai}
+    environment:
+      POSTGRES_DB: "${DB_NAME:-geo_system}"
+      POSTGRES_USER: "${DB_USER:-geo_user}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      TZ: "${TZ:-Asia/Shanghai}"
+      PGTZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-geo_user} -d ${DB_NAME:-geo_system}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  php:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: php
+    image: geo-system:php
+    container_name: geo-system-php
+    init: true
+    expose:
+      - "9000"
+    environment:
+      DB_DRIVER: "${DB_DRIVER:-pgsql}"
+      DB_HOST: "${DB_HOST:-postgres}"
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-geo_system}"
+      DB_USER: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      SITE_URL: "${SITE_URL}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY}"
+      REQUIRE_STRONG_APP_SECRET: "true"
+      ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"
+      DATAFORSEO_LOGIN: "${DATAFORSEO_LOGIN:-}"
+      DATAFORSEO_PASSWORD: "${DATAFORSEO_PASSWORD:-}"
+      DATAFORSEO_TIMEOUT: "${DATAFORSEO_TIMEOUT:-45}"
+      DATAFORSEO_DEFAULT_LOCATION_CODE: "${DATAFORSEO_DEFAULT_LOCATION_CODE:-2840}"
+      DATAFORSEO_DEFAULT_LANGUAGE_CODE: "${DATAFORSEO_DEFAULT_LANGUAGE_CODE:-en}"
+      DATAFORSEO_MAX_KEYWORD_LIMIT: "${DATAFORSEO_MAX_KEYWORD_LIMIT:-100}"
+      DATAFORSEO_MAX_SEED_COUNT: "${DATAFORSEO_MAX_SEED_COUNT:-5}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - geo_data:/var/www/html/data
+      - geo_uploads:/var/www/html/uploads
+      - geo_logs:/var/www/html/logs
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php-fpm", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    image: geo-system:web
+    container_name: geo-system-web
+    init: true
+    ports:
+      - "${HOST_PORT:-127.0.0.1:18080}:8080"
+    environment:
+      ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"
+    volumes:
+      - geo_uploads:/var/www/html/uploads:ro
+    restart: unless-stopped
+    depends_on:
+      php:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/nginx-health >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scheduler
+    image: geo-system:scheduler
+    container_name: geo-system-scheduler
+    init: true
+    environment:
+      DB_DRIVER: "${DB_DRIVER:-pgsql}"
+      DB_HOST: "${DB_HOST:-postgres}"
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-geo_system}"
+      DB_USER: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      CRON_INTERVAL: "${CRON_INTERVAL:-60}"
+      SITE_URL: "${SITE_URL}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY}"
+      REQUIRE_STRONG_APP_SECRET: "true"
+      ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"
+      DATAFORSEO_LOGIN: "${DATAFORSEO_LOGIN:-}"
+      DATAFORSEO_PASSWORD: "${DATAFORSEO_PASSWORD:-}"
+      DATAFORSEO_TIMEOUT: "${DATAFORSEO_TIMEOUT:-45}"
+      DATAFORSEO_DEFAULT_LOCATION_CODE: "${DATAFORSEO_DEFAULT_LOCATION_CODE:-2840}"
+      DATAFORSEO_DEFAULT_LANGUAGE_CODE: "${DATAFORSEO_DEFAULT_LANGUAGE_CODE:-en}"
+      DATAFORSEO_MAX_KEYWORD_LIMIT: "${DATAFORSEO_MAX_KEYWORD_LIMIT:-100}"
+      DATAFORSEO_MAX_SEED_COUNT: "${DATAFORSEO_MAX_SEED_COUNT:-5}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - geo_data:/var/www/html/data
+      - geo_uploads:/var/www/html/uploads
+      - geo_logs:/var/www/html/logs
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      php:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scheduler
+    image: geo-system:worker
+    container_name: geo-system-worker
+    init: true
+    command: ["php", "/var/www/html/bin/worker.php"]
+    environment:
+      DB_DRIVER: "${DB_DRIVER:-pgsql}"
+      DB_HOST: "${DB_HOST:-postgres}"
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-geo_system}"
+      DB_USER: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+      SITE_URL: "${SITE_URL}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY}"
+      REQUIRE_STRONG_APP_SECRET: "true"
+      ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"
+      DATAFORSEO_LOGIN: "${DATAFORSEO_LOGIN:-}"
+      DATAFORSEO_PASSWORD: "${DATAFORSEO_PASSWORD:-}"
+      DATAFORSEO_TIMEOUT: "${DATAFORSEO_TIMEOUT:-45}"
+      DATAFORSEO_DEFAULT_LOCATION_CODE: "${DATAFORSEO_DEFAULT_LOCATION_CODE:-2840}"
+      DATAFORSEO_DEFAULT_LANGUAGE_CODE: "${DATAFORSEO_DEFAULT_LANGUAGE_CODE:-en}"
+      DATAFORSEO_MAX_KEYWORD_LIMIT: "${DATAFORSEO_MAX_KEYWORD_LIMIT:-100}"
+      DATAFORSEO_MAX_SEED_COUNT: "${DATAFORSEO_MAX_SEED_COUNT:-5}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - geo_data:/var/www/html/data
+      - geo_uploads:/var/www/html/uploads
+      - geo_logs:/var/www/html/logs
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      php:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  geo_data:
+  geo_uploads:
+  geo_logs:

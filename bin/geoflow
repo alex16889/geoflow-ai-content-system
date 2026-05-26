@@ -1,0 +1,934 @@
+#!/usr/bin/env php
+<?php
+/**
+ * GEOFlow CLI
+ *
+ * 通过 /api/v1 与 GEOFlow 系统通信。
+ */
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "This command must run in CLI mode.\n");
+    exit(1);
+}
+
+const GEOFLOW_CLI_VERSION = '0.1.0';
+
+final class GeoFlowCliException extends RuntimeException {
+    public function __construct(string $message, public int $exitCode = 1) {
+        parent::__construct($message);
+    }
+}
+
+final class GeoFlowApiException extends RuntimeException {
+    public function __construct(
+        string $message,
+        public int $httpStatus,
+        public array $payload = []
+    ) {
+        parent::__construct($message);
+    }
+}
+
+final class GeoFlowApiClient {
+    public function __construct(
+        private string $baseUrl,
+        private ?string $token,
+        private int $timeout = 30
+    ) {
+        $this->baseUrl = rtrim($this->baseUrl, '/');
+    }
+
+    public function request(
+        string $method,
+        string $path,
+        array $query = [],
+        ?array $body = null,
+        ?string $idempotencyKey = null,
+        bool $requiresAuth = true
+    ): array {
+        $url = $this->buildUrl($path, $query);
+        $headers = [
+            'Accept: application/json',
+            'X-Request-Id: ' . geoflow_generate_request_id()
+        ];
+
+        if ($requiresAuth) {
+            if (!is_string($this->token) || trim($this->token) === '') {
+                throw new GeoFlowCliException('当前请求需要认证，但没有可用 token。请先运行 geoflow login');
+            }
+            $headers[] = 'Authorization: Bearer ' . $this->token;
+        }
+
+        $method = strtoupper($method);
+        $curl = curl_init($url);
+        if ($curl === false) {
+            throw new GeoFlowCliException('无法初始化 cURL');
+        }
+
+        if ($body !== null) {
+            $headers[] = 'Content-Type: application/json';
+            curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
+
+        if ($idempotencyKey !== null && $idempotencyKey !== '') {
+            $headers[] = 'X-Idempotency-Key: ' . $idempotencyKey;
+        }
+
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => min(10, $this->timeout),
+            CURLOPT_FAILONERROR => false
+        ]);
+
+        $raw = curl_exec($curl);
+        $errno = curl_errno($curl);
+        $error = curl_error($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        curl_close($curl);
+
+        if ($errno !== 0) {
+            throw new GeoFlowCliException('请求失败: ' . $error);
+        }
+
+        if (!is_string($raw) || trim($raw) === '') {
+            throw new GeoFlowCliException('服务端返回了空响应');
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            throw new GeoFlowCliException("服务端返回了非 JSON 响应（HTTP {$status}）");
+        }
+
+        if ($status >= 400 || ($decoded['success'] ?? true) !== true) {
+            $message = $decoded['error']['message'] ?? "API 请求失败（HTTP {$status}）";
+            throw new GeoFlowApiException($message, $status, $decoded);
+        }
+
+        return $decoded;
+    }
+
+    private function buildUrl(string $path, array $query): string {
+        $path = '/' . ltrim($path, '/');
+        $url = $this->baseUrl . '/api/v1' . $path;
+
+        $query = array_filter($query, static function ($value) {
+            return $value !== null && $value !== '';
+        });
+
+        if (!empty($query)) {
+            $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+        }
+
+        return $url;
+    }
+}
+
+function geoflow_main(array $argv): int {
+    [$globalOptions, $remaining] = geoflow_extract_global_options(array_slice($argv, 1));
+    $command = $remaining[0] ?? 'help';
+
+    if (in_array($command, ['help', '-h', '--help'], true)) {
+        geoflow_print_usage();
+        return 0;
+    }
+
+    if (in_array($command, ['version', '--version'], true)) {
+        geoflow_print_json([
+            'name' => 'geoflow',
+            'version' => GEOFLOW_CLI_VERSION
+        ]);
+        return 0;
+    }
+
+    return match ($command) {
+        'config' => geoflow_handle_config(array_slice($remaining, 1), $globalOptions),
+        'login' => geoflow_handle_login(array_slice($remaining, 1), $globalOptions),
+        'catalog' => geoflow_handle_catalog(array_slice($remaining, 1), $globalOptions),
+        'task' => geoflow_handle_task(array_slice($remaining, 1), $globalOptions),
+        'job' => geoflow_handle_job(array_slice($remaining, 1), $globalOptions),
+        'article' => geoflow_handle_article(array_slice($remaining, 1), $globalOptions),
+        default => throw new GeoFlowCliException("未知命令: {$command}\n\n" . geoflow_usage_text(), 1)
+    };
+}
+
+function geoflow_handle_config(array $args, array $globalOptions = []): int {
+    $action = $args[0] ?? 'help';
+    $parsed = geoflow_parse_options(array_slice($args, 1));
+    $options = array_merge($globalOptions, $parsed['options']);
+
+    if (in_array($action, ['help', '-h', '--help'], true)) {
+        geoflow_print_json([
+            'usage' => [
+                'geoflow config init --base-url URL --token TOKEN [--timeout 30] [--file PATH] [--force]',
+                'geoflow config show [--config PATH]'
+            ]
+        ]);
+        return 0;
+    }
+
+    if ($action === 'init') {
+        $baseUrl = geoflow_require_option($options, 'base-url');
+        $token = geoflow_require_option($options, 'token');
+        $timeout = geoflow_get_int_option($options, 'timeout', 30);
+        if ($timeout <= 0) {
+            throw new GeoFlowCliException('timeout 必须是正整数');
+        }
+
+        $configPath = geoflow_expand_path($options['file'] ?? geoflow_default_home_config_path());
+        if (is_file($configPath) && empty($options['force'])) {
+            throw new GeoFlowCliException("配置文件已存在，使用 --force 覆盖: {$configPath}");
+        }
+
+        $dir = dirname($configPath);
+        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+            throw new GeoFlowCliException("无法创建目录: {$dir}");
+        }
+
+        $payload = [
+            'base_url' => rtrim($baseUrl, '/'),
+            'token' => $token,
+            'timeout' => $timeout
+        ];
+        geoflow_save_config($configPath, $payload);
+
+        geoflow_print_json([
+            'saved' => true,
+            'config_file' => $configPath,
+            'base_url' => $payload['base_url'],
+            'token_masked' => geoflow_mask_secret($token),
+            'timeout' => $timeout
+        ]);
+        return 0;
+    }
+
+    if ($action === 'show') {
+        $config = geoflow_resolve_config($options, false);
+        geoflow_print_json([
+            'config_files' => $config['config_files'],
+            'base_url' => $config['base_url'],
+            'base_url_source' => $config['base_url_source'],
+            'token_masked' => geoflow_mask_secret($config['token']),
+            'token_source' => $config['token_source'],
+            'timeout' => $config['timeout'],
+            'timeout_source' => $config['timeout_source']
+        ]);
+        return 0;
+    }
+
+    throw new GeoFlowCliException("未知 config 子命令: {$action}");
+}
+
+function geoflow_handle_login(array $args, array $globalOptions = []): int {
+    $parsed = geoflow_parse_options($args);
+    $options = array_merge($globalOptions, $parsed['options']);
+
+    $existingConfig = geoflow_resolve_config($options, false);
+    $baseUrl = trim((string) ($options['base-url'] ?? $existingConfig['base_url'] ?? ''));
+    if ($baseUrl === '') {
+        throw new GeoFlowCliException('缺少系统地址。请传入 --base-url，或先提供已有配置');
+    }
+
+    $username = trim((string) ($options['username'] ?? ''));
+    if ($username === '') {
+        $username = geoflow_prompt('管理员用户名: ');
+    }
+    if ($username === '') {
+        throw new GeoFlowCliException('用户名不能为空');
+    }
+
+    $password = (string) ($options['password'] ?? '');
+    if ($password === '') {
+        $password = geoflow_prompt_secret('管理员密码: ');
+    }
+    if ($password === '') {
+        throw new GeoFlowCliException('密码不能为空');
+    }
+
+    $timeout = geoflow_get_int_option($options, 'timeout', (int) ($existingConfig['timeout'] ?? 30));
+    if ($timeout <= 0) {
+        throw new GeoFlowCliException('timeout 必须是正整数');
+    }
+
+    $client = new GeoFlowApiClient(rtrim($baseUrl, '/'), null, $timeout);
+    $payload = $client->request(
+        'POST',
+        '/auth/login',
+        [],
+        [
+            'username' => $username,
+            'password' => $password
+        ],
+        $options['idempotency-key'] ?? null,
+        false
+    );
+
+    $token = (string) ($payload['data']['token'] ?? '');
+    if ($token === '') {
+        throw new GeoFlowCliException('登录成功，但服务端没有返回 token');
+    }
+
+    $configPath = geoflow_expand_path($options['file'] ?? $options['config'] ?? geoflow_default_home_config_path());
+    if (is_file($configPath) && empty($options['force'])) {
+        $savedConfig = geoflow_load_config_file($configPath);
+        if (
+            ($savedConfig['base_url'] ?? '') !== rtrim($baseUrl, '/')
+            || ($savedConfig['token'] ?? '') !== $token
+            || (int) ($savedConfig['timeout'] ?? 30) !== $timeout
+        ) {
+            throw new GeoFlowCliException("配置文件已存在，使用 --force 覆盖: {$configPath}");
+        }
+    }
+
+    $configPayload = [
+        'base_url' => rtrim($baseUrl, '/'),
+        'token' => $token,
+        'timeout' => $timeout
+    ];
+    geoflow_save_config($configPath, $configPayload);
+
+    geoflow_print_json([
+        'logged_in' => true,
+        'config_file' => $configPath,
+        'base_url' => $configPayload['base_url'],
+        'token_masked' => geoflow_mask_secret($token),
+        'admin' => $payload['data']['admin'] ?? null,
+        'expires_at' => $payload['data']['expires_at'] ?? null
+    ]);
+    return 0;
+}
+
+function geoflow_handle_catalog(array $args, array $globalOptions = []): int {
+    $parsed = geoflow_parse_options($args);
+    $client = geoflow_api_client(array_merge($globalOptions, $parsed['options']));
+    $payload = $client->request('GET', '/catalog');
+    geoflow_print_json($payload);
+    return 0;
+}
+
+function geoflow_handle_task(array $args, array $globalOptions = []): int {
+    $action = $args[0] ?? 'help';
+    $parsed = geoflow_parse_options(array_slice($args, 1));
+    $options = array_merge($globalOptions, $parsed['options']);
+    $positionals = $parsed['positionals'];
+    $client = geoflow_api_client($options);
+
+    return match ($action) {
+        'list' => geoflow_print_and_return($client->request('GET', '/tasks', [
+            'page' => geoflow_get_int_option($options, 'page', 1),
+            'per_page' => geoflow_get_int_option($options, 'per-page', 20),
+            'status' => $options['status'] ?? null,
+            'search' => $options['search'] ?? null
+        ])),
+        'create' => geoflow_print_and_return($client->request(
+            'POST',
+            '/tasks',
+            [],
+            geoflow_require_json_body($options),
+            $options['idempotency-key'] ?? null
+        )),
+        'get' => geoflow_print_and_return($client->request(
+            'GET',
+            '/tasks/' . geoflow_require_int_positional($positionals, 0, '任务 ID')
+        )),
+        'update' => geoflow_print_and_return($client->request(
+            'PATCH',
+            '/tasks/' . geoflow_require_int_positional($positionals, 0, '任务 ID'),
+            [],
+            geoflow_require_json_body($options),
+            $options['idempotency-key'] ?? null
+        )),
+        'start' => geoflow_print_and_return($client->request(
+            'POST',
+            '/tasks/' . geoflow_require_int_positional($positionals, 0, '任务 ID') . '/start',
+            [],
+            ['enqueue_now' => !empty($options['enqueue-now'])],
+            $options['idempotency-key'] ?? null
+        )),
+        'stop' => geoflow_print_and_return($client->request(
+            'POST',
+            '/tasks/' . geoflow_require_int_positional($positionals, 0, '任务 ID') . '/stop',
+            [],
+            [],
+            $options['idempotency-key'] ?? null
+        )),
+        'enqueue' => geoflow_print_and_return($client->request(
+            'POST',
+            '/tasks/' . geoflow_require_int_positional($positionals, 0, '任务 ID') . '/enqueue',
+            [],
+            geoflow_build_task_enqueue_body($options),
+            $options['idempotency-key'] ?? null
+        )),
+        'jobs' => geoflow_print_and_return($client->request(
+            'GET',
+            '/tasks/' . geoflow_require_int_positional($positionals, 0, '任务 ID') . '/jobs',
+            [
+                'status' => $options['status'] ?? null,
+                'limit' => geoflow_get_int_option($options, 'limit', 20)
+            ]
+        )),
+        default => throw new GeoFlowCliException("未知 task 子命令: {$action}")
+    };
+}
+
+function geoflow_handle_job(array $args, array $globalOptions = []): int {
+    $action = $args[0] ?? 'help';
+    $parsed = geoflow_parse_options(array_slice($args, 1));
+    $options = array_merge($globalOptions, $parsed['options']);
+    $positionals = $parsed['positionals'];
+    $client = geoflow_api_client($options);
+
+    return match ($action) {
+        'get' => geoflow_print_and_return($client->request(
+            'GET',
+            '/jobs/' . geoflow_require_int_positional($positionals, 0, 'Job ID')
+        )),
+        default => throw new GeoFlowCliException("未知 job 子命令: {$action}")
+    };
+}
+
+function geoflow_handle_article(array $args, array $globalOptions = []): int {
+    $action = $args[0] ?? 'help';
+    $parsed = geoflow_parse_options(array_slice($args, 1));
+    $options = array_merge($globalOptions, $parsed['options']);
+    $positionals = $parsed['positionals'];
+    $client = geoflow_api_client($options);
+
+    return match ($action) {
+        'list' => geoflow_print_and_return($client->request('GET', '/articles', [
+            'page' => geoflow_get_int_option($options, 'page', 1),
+            'per_page' => geoflow_get_int_option($options, 'per-page', 20),
+            'task_id' => geoflow_nullable_int_query($options, 'task-id'),
+            'status' => $options['status'] ?? null,
+            'review_status' => $options['review-status'] ?? null,
+            'author_id' => geoflow_nullable_int_query($options, 'author-id'),
+            'search' => $options['search'] ?? null
+        ])),
+        'create' => geoflow_print_and_return($client->request(
+            'POST',
+            '/articles',
+            [],
+            geoflow_build_article_body($options, true),
+            $options['idempotency-key'] ?? null
+        )),
+        'get' => geoflow_print_and_return($client->request(
+            'GET',
+            '/articles/' . geoflow_require_int_positional($positionals, 0, '文章 ID')
+        )),
+        'update' => geoflow_print_and_return($client->request(
+            'PATCH',
+            '/articles/' . geoflow_require_int_positional($positionals, 0, '文章 ID'),
+            [],
+            geoflow_build_article_body($options, false),
+            $options['idempotency-key'] ?? null
+        )),
+        'review' => geoflow_print_and_return($client->request(
+            'POST',
+            '/articles/' . geoflow_require_int_positional($positionals, 0, '文章 ID') . '/review',
+            [],
+            [
+                'review_status' => geoflow_require_option($options, 'status'),
+                'review_note' => trim((string) ($options['note'] ?? ''))
+            ],
+            $options['idempotency-key'] ?? null
+        )),
+        'publish' => geoflow_print_and_return($client->request(
+            'POST',
+            '/articles/' . geoflow_require_int_positional($positionals, 0, '文章 ID') . '/publish',
+            [],
+            [],
+            $options['idempotency-key'] ?? null
+        )),
+        'trash' => geoflow_print_and_return($client->request(
+            'POST',
+            '/articles/' . geoflow_require_int_positional($positionals, 0, '文章 ID') . '/trash',
+            [],
+            [],
+            $options['idempotency-key'] ?? null
+        )),
+        default => throw new GeoFlowCliException("未知 article 子命令: {$action}")
+    };
+}
+
+function geoflow_api_client(array $options): GeoFlowApiClient {
+    $config = geoflow_resolve_config($options, true);
+    return new GeoFlowApiClient(
+        $config['base_url'],
+        $config['token'],
+        $config['timeout']
+    );
+}
+
+function geoflow_resolve_config(array $options, bool $requireApi): array {
+    $homeConfigPath = geoflow_default_home_config_path();
+    $localConfigPath = getcwd() . '/.geoflow.json';
+    $explicitConfigPath = isset($options['config']) ? geoflow_expand_path((string) $options['config']) : null;
+
+    $config = [
+        'base_url' => null,
+        'base_url_source' => null,
+        'token' => null,
+        'token_source' => null,
+        'timeout' => 30,
+        'timeout_source' => 'default',
+        'config_files' => []
+    ];
+
+    $files = [];
+    if ($explicitConfigPath !== null) {
+        $files[] = $explicitConfigPath;
+    } else {
+        $files[] = $homeConfigPath;
+        if (is_file($localConfigPath)) {
+            $files[] = $localConfigPath;
+        }
+    }
+
+    foreach ($files as $file) {
+        if (!is_file($file)) {
+            continue;
+        }
+        $loaded = geoflow_load_config_file($file);
+        $config['config_files'][] = $file;
+        foreach (['base_url', 'token', 'timeout'] as $key) {
+            if (array_key_exists($key, $loaded) && $loaded[$key] !== null && $loaded[$key] !== '') {
+                $config[$key] = $loaded[$key];
+                $config[$key . '_source'] = 'file:' . $file;
+            }
+        }
+    }
+
+    $envMap = [
+        'base_url' => 'GEOFLOW_BASE_URL',
+        'token' => 'GEOFLOW_TOKEN',
+        'timeout' => 'GEOFLOW_TIMEOUT'
+    ];
+    foreach ($envMap as $key => $envName) {
+        $value = getenv($envName);
+        if ($value !== false && $value !== '') {
+            $config[$key] = $key === 'timeout' ? (int) $value : $value;
+            $config[$key . '_source'] = 'env:' . $envName;
+        }
+    }
+
+    if (!empty($options['base-url'])) {
+        $config['base_url'] = $options['base-url'];
+        $config['base_url_source'] = 'cli';
+    }
+    if (!empty($options['token'])) {
+        $config['token'] = $options['token'];
+        $config['token_source'] = 'cli';
+    }
+    if (!empty($options['timeout'])) {
+        $config['timeout'] = geoflow_get_int_option($options, 'timeout', 30);
+        $config['timeout_source'] = 'cli';
+    }
+
+    if (!empty($config['base_url'])) {
+        $config['base_url'] = rtrim((string) $config['base_url'], '/');
+    }
+
+    if ($requireApi) {
+        if (empty($config['base_url'])) {
+            throw new GeoFlowCliException('缺少 base_url。请先运行 geoflow config init，或传入 --base-url，或设置 GEOFLOW_BASE_URL');
+        }
+        if (empty($config['token'])) {
+            throw new GeoFlowCliException('缺少 token。请先运行 geoflow config init，或传入 --token，或设置 GEOFLOW_TOKEN');
+        }
+    }
+
+    return $config;
+}
+
+function geoflow_save_config(string $configPath, array $payload): void {
+    $dir = dirname($configPath);
+    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        throw new GeoFlowCliException("无法创建目录: {$dir}");
+    }
+
+    file_put_contents(
+        $configPath,
+        json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL
+    );
+}
+
+function geoflow_load_config_file(string $path): array {
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        throw new GeoFlowCliException("无法读取配置文件: {$path}");
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        throw new GeoFlowCliException("配置文件不是有效 JSON: {$path}");
+    }
+
+    return [
+        'base_url' => isset($decoded['base_url']) ? trim((string) $decoded['base_url']) : null,
+        'token' => isset($decoded['token']) ? trim((string) $decoded['token']) : null,
+        'timeout' => isset($decoded['timeout']) ? (int) $decoded['timeout'] : null
+    ];
+}
+
+function geoflow_default_home_config_path(): string {
+    $home = getenv('HOME');
+    if (!is_string($home) || $home === '') {
+        throw new GeoFlowCliException('无法解析 HOME 目录');
+    }
+
+    return rtrim($home, '/') . '/.config/geoflow/config.json';
+}
+
+function geoflow_expand_path(string $path): string {
+    if ($path === '~' || str_starts_with($path, '~/')) {
+        $home = getenv('HOME');
+        if (!is_string($home) || $home === '') {
+            throw new GeoFlowCliException('无法解析 HOME 目录');
+        }
+        return $home . substr($path, 1);
+    }
+    return $path;
+}
+
+function geoflow_parse_options(array $tokens): array {
+    $options = [];
+    $positionals = [];
+    $booleanOptions = [
+        'ai-generated',
+        'enqueue-now',
+        'force'
+    ];
+
+    for ($i = 0, $count = count($tokens); $i < $count; $i++) {
+        $token = $tokens[$i];
+        if (!is_string($token) || $token === '') {
+            continue;
+        }
+
+        if (!str_starts_with($token, '--')) {
+            $positionals[] = $token;
+            continue;
+        }
+
+        $token = substr($token, 2);
+        if ($token === '') {
+            continue;
+        }
+
+        if (str_contains($token, '=')) {
+            [$key, $value] = explode('=', $token, 2);
+            $options[$key] = $value;
+            continue;
+        }
+
+        if (in_array($token, $booleanOptions, true)) {
+            $options[$token] = true;
+            continue;
+        }
+
+        $next = $tokens[$i + 1] ?? null;
+        if ($next === null || str_starts_with((string) $next, '--')) {
+            throw new GeoFlowCliException("选项 --{$token} 缺少值");
+        }
+
+        $options[$token] = $next;
+        $i++;
+    }
+
+    return [
+        'options' => $options,
+        'positionals' => $positionals
+    ];
+}
+
+function geoflow_extract_global_options(array $tokens): array {
+    $globalTokens = [];
+    $count = count($tokens);
+    $index = 0;
+
+    while ($index < $count) {
+        $token = $tokens[$index];
+        if (!is_string($token) || !str_starts_with($token, '--')) {
+            break;
+        }
+
+        $globalTokens[] = $token;
+        if (!str_contains($token, '=')) {
+            $next = $tokens[$index + 1] ?? null;
+            if ($next !== null && is_string($next) && !str_starts_with($next, '--')) {
+                $globalTokens[] = $next;
+                $index++;
+            }
+        }
+        $index++;
+    }
+
+    $parsed = geoflow_parse_options($globalTokens);
+    return [$parsed['options'], array_slice($tokens, $index)];
+}
+
+function geoflow_require_option(array $options, string $name): string {
+    $value = isset($options[$name]) ? trim((string) $options[$name]) : '';
+    if ($value === '') {
+        throw new GeoFlowCliException("缺少必填参数 --{$name}");
+    }
+    return $value;
+}
+
+function geoflow_get_int_option(array $options, string $name, int $default): int {
+    if (!isset($options[$name]) || $options[$name] === '') {
+        return $default;
+    }
+    if (!is_numeric($options[$name])) {
+        throw new GeoFlowCliException("--{$name} 必须是数字");
+    }
+    return (int) $options[$name];
+}
+
+function geoflow_nullable_int_query(array $options, string $name): ?int {
+    if (!isset($options[$name]) || $options[$name] === '') {
+        return null;
+    }
+    if (!is_numeric($options[$name])) {
+        throw new GeoFlowCliException("--{$name} 必须是数字");
+    }
+    return (int) $options[$name];
+}
+
+function geoflow_require_int_positional(array $positionals, int $index, string $label): int {
+    $value = $positionals[$index] ?? null;
+    if ($value === null || !is_numeric($value)) {
+        throw new GeoFlowCliException("缺少有效的{$label}");
+    }
+    return (int) $value;
+}
+
+function geoflow_require_json_body(array $options): array {
+    $path = geoflow_require_option($options, 'json');
+    return geoflow_load_json_input($path);
+}
+
+function geoflow_load_json_input(string $path): array {
+    if ($path === '-') {
+        $raw = stream_get_contents(STDIN);
+    } else {
+        $expandedPath = geoflow_expand_path($path);
+        $raw = file_get_contents($expandedPath);
+    }
+
+    if ($raw === false || trim($raw) === '') {
+        throw new GeoFlowCliException("无法读取 JSON 输入: {$path}");
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        throw new GeoFlowCliException("JSON 输入格式无效: {$path}");
+    }
+
+    return $decoded;
+}
+
+function geoflow_build_task_enqueue_body(array $options): array {
+    $body = [];
+    if (!empty($options['payload-json'])) {
+        $body = geoflow_load_json_input((string) $options['payload-json']);
+    }
+    if (!empty($options['job-type'])) {
+        $body['job_type'] = trim((string) $options['job-type']);
+    }
+    return $body;
+}
+
+function geoflow_build_article_body(array $options, bool $isCreate): array {
+    if (!empty($options['json'])) {
+        return geoflow_require_json_body($options);
+    }
+
+    $body = [];
+    $textFields = [
+        'title' => 'title',
+        'excerpt' => 'excerpt',
+        'slug' => 'slug',
+        'status' => 'status',
+        'review-status' => 'review_status',
+        'keywords' => 'keywords',
+        'meta-description' => 'meta_description'
+    ];
+    foreach ($textFields as $optionName => $fieldName) {
+        if (isset($options[$optionName])) {
+            $body[$fieldName] = (string) $options[$optionName];
+        }
+    }
+
+    $intFields = [
+        'task-id' => 'task_id',
+        'author-id' => 'author_id',
+        'category-id' => 'category_id'
+    ];
+    foreach ($intFields as $optionName => $fieldName) {
+        if (isset($options[$optionName]) && $options[$optionName] !== '') {
+            if (!is_numeric($options[$optionName])) {
+                throw new GeoFlowCliException("--{$optionName} 必须是数字");
+            }
+            $body[$fieldName] = (int) $options[$optionName];
+        }
+    }
+
+    if (isset($options['ai-generated'])) {
+        $body['is_ai_generated'] = 1;
+    }
+
+    $hasContent = isset($options['content']) || isset($options['content-file']);
+    if (isset($options['content']) && isset($options['content-file'])) {
+        throw new GeoFlowCliException('--content 和 --content-file 不能同时使用');
+    }
+    if ($hasContent) {
+        $body['content'] = isset($options['content'])
+            ? (string) $options['content']
+            : geoflow_load_text_input((string) $options['content-file']);
+    }
+
+    if ($isCreate) {
+        if (empty($body['title'])) {
+            throw new GeoFlowCliException('创建文章时必须提供 --title，或通过 --json 传入');
+        }
+        if (empty($body['content'])) {
+            throw new GeoFlowCliException('创建文章时必须提供 --content-file/--content，或通过 --json 传入');
+        }
+    } elseif (empty($body)) {
+        throw new GeoFlowCliException('没有可更新的字段');
+    }
+
+    return $body;
+}
+
+function geoflow_load_text_input(string $path): string {
+    if ($path === '-') {
+        $raw = stream_get_contents(STDIN);
+    } else {
+        $expandedPath = geoflow_expand_path($path);
+        $raw = file_get_contents($expandedPath);
+    }
+
+    if ($raw === false) {
+        throw new GeoFlowCliException("无法读取文本输入: {$path}");
+    }
+
+    return $raw;
+}
+
+function geoflow_generate_request_id(): string {
+    return 'cli_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4));
+}
+
+function geoflow_mask_secret(?string $value): ?string {
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    $length = strlen($value);
+    if ($length <= 10) {
+        return str_repeat('*', $length);
+    }
+
+    return substr($value, 0, 6) . str_repeat('*', max(4, $length - 10)) . substr($value, -4);
+}
+
+function geoflow_print_usage(): void {
+    fwrite(STDOUT, geoflow_usage_text() . PHP_EOL);
+}
+
+function geoflow_usage_text(): string {
+    return <<<TEXT
+GEOFlow CLI
+
+Usage:
+  geoflow config init --base-url URL --token TOKEN [--timeout 30] [--file PATH] [--force]
+  geoflow config show [--config PATH]
+  geoflow login --base-url URL [--username USER] [--password PASS] [--config PATH] [--force]
+  geoflow catalog [--config PATH] [--base-url URL] [--token TOKEN]
+  geoflow task list [--status active] [--search keyword] [--page 1] [--per-page 20]
+  geoflow task create --json FILE [--idempotency-key KEY]
+  geoflow task get TASK_ID
+  geoflow task update TASK_ID --json FILE [--idempotency-key KEY]
+  geoflow task start TASK_ID [--enqueue-now] [--idempotency-key KEY]
+  geoflow task stop TASK_ID [--idempotency-key KEY]
+  geoflow task enqueue TASK_ID [--job-type TYPE] [--payload-json FILE] [--idempotency-key KEY]
+  geoflow task jobs TASK_ID [--status pending] [--limit 20]
+  geoflow job get JOB_ID
+  geoflow article list [--task-id ID] [--status draft] [--review-status pending]
+  geoflow article create --title TITLE --content-file FILE [--task-id ID] [--category-id ID] [--status draft]
+  geoflow article create --json FILE [--idempotency-key KEY]
+  geoflow article get ARTICLE_ID
+  geoflow article update ARTICLE_ID [--json FILE]
+  geoflow article review ARTICLE_ID --status approved [--note TEXT] [--idempotency-key KEY]
+  geoflow article publish ARTICLE_ID [--idempotency-key KEY]
+  geoflow article trash ARTICLE_ID [--idempotency-key KEY]
+
+Config precedence:
+  CLI options > env vars (GEOFLOW_BASE_URL/GEOFLOW_TOKEN/GEOFLOW_TIMEOUT)
+  > local .geoflow.json > ~/.config/geoflow/config.json
+
+Examples:
+  geoflow login --base-url http://127.0.0.1:18080 --username admin
+  geoflow config init --base-url http://127.0.0.1:18080 --token gf_xxx
+  geoflow catalog
+  geoflow task create --json ./task.json
+  geoflow task start 12 --enqueue-now
+  geoflow article create --title "测试文章" --content-file ./article.md --task-id 12 --category-id 6
+  geoflow article publish 101
+TEXT;
+}
+
+function geoflow_prompt(string $label): string {
+    fwrite(STDOUT, $label);
+    $value = fgets(STDIN);
+    return $value === false ? '' : trim($value);
+}
+
+function geoflow_prompt_secret(string $label): string {
+    fwrite(STDOUT, $label);
+    $sttyMode = shell_exec('stty -g 2>/dev/null');
+    if (is_string($sttyMode) && trim($sttyMode) !== '') {
+        shell_exec('stty -echo 2>/dev/null');
+    }
+
+    try {
+        $value = fgets(STDIN);
+    } finally {
+        if (is_string($sttyMode) && trim($sttyMode) !== '') {
+            shell_exec('stty ' . trim($sttyMode) . ' 2>/dev/null');
+        }
+        fwrite(STDOUT, PHP_EOL);
+    }
+
+    return $value === false ? '' : rtrim($value, "\r\n");
+}
+
+function geoflow_print_and_return(array $payload): int {
+    geoflow_print_json($payload);
+    return 0;
+}
+
+function geoflow_print_json(array $payload): void {
+    fwrite(STDOUT, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+}
+
+try {
+    exit(geoflow_main($argv));
+} catch (GeoFlowApiException $e) {
+    if (!empty($e->payload)) {
+        fwrite(STDERR, json_encode($e->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    } else {
+        fwrite(STDERR, $e->getMessage() . PHP_EOL);
+    }
+    exit(1);
+} catch (GeoFlowCliException $e) {
+    fwrite(STDERR, $e->getMessage() . PHP_EOL);
+    exit($e->exitCode);
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Unexpected error: ' . $e->getMessage() . PHP_EOL);
+    exit(1);
+}
