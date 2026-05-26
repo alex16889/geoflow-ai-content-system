@@ -17,9 +17,9 @@ Released under the Apache License 2.0.
 
 本仓库是基于上游 [GEOFlow](https://github.com/yaojingang/GEOFlow) 原始项目想法与 Apache-2.0 开源许可继续二次开发的版本。公开发布时会保留原始 `LICENSE`、`NOTICE` 和源码头部作者声明，同时把下游改动记录在本 README 与 [OPEN_SOURCE_RELEASE.md](OPEN_SOURCE_RELEASE.md) 中。
 
-这个二开版本重点增强了多站点精品站运营、站点隔离、DataForSEO 拉词、站点地图、IndexNow/Bing/百度搜索推送、质量评分、预算护栏、后台 UI、静态资源本地化和部署安全。上游作者不对本仓库后续改动负责，除非上游项目明确说明。
+这个二开版本重点增强了多站点精品站运营、站点隔离、DataForSEO 拉词、站点地图、`llms.txt`、IndexNow/Bing/百度搜索推送、SEO/GEO 工作台、质量评分、预算护栏、后台 UI、静态资源本地化和部署安全。上游作者不对本仓库后续改动负责，除非上游项目明确说明。
 
-如果你是为了快速了解这个项目的 SEO/GEO 案例价值，可以先看 [CASE_STUDY.md](CASE_STUDY.md)。
+如果你是为了快速了解这个项目的 SEO/GEO 案例价值，可以先看 [CASE_STUDY.md](CASE_STUDY.md)、[ROADMAP.md](ROADMAP.md) 和 [SEO/GEO Audit Checklist](docs/seo-geo-audit-checklist.md)。
 
 ---
 
@@ -33,7 +33,8 @@ Released under the Apache License 2.0.
 | 🗂 素材统一管理 | 标题库、关键词库、图片库、知识库、提示词集中管理 |
 | 📈 自动关键词导入 | 可接 DataForSEO 拉取关键词建议，并记录站点级预算和花费 |
 | 📋 审核与发布工作流 | 草稿、审核、发布三段式流程，可切换自动发布 |
-| 🔍 面向搜索展示优化 | 文章 SEO 元信息、Open Graph、结构化数据、站点地图与搜索推送队列 |
+| 🔍 面向搜索展示优化 | 文章 SEO 元信息、Open Graph、结构化数据、站点地图、`llms.txt` 与搜索推送队列 |
+| 🧭 SEO/GEO 工作台 | 本地 readiness 审计、搜索表现快照、AI 可见性记录、竞品简报、内链建议、重定向和 404 |
 | 🧪 内容质量护栏 | 发布前按质量分、字数和问题清单拦截低质量内容 |
 | 🎨 前台模板预览 | 支持 preview-first 主题包、模板预览与后台启用 |
 | 🐳 可直接部署 | 支持 Docker Compose，本地和服务器都能跑 |
@@ -223,6 +224,8 @@ open http://localhost:8080/geo_admin/
 - [Español README](README_es.md)
 - [Русский README](README_ru.md)
 - [文档中心](docs/README.md)
+- [SEO/GEO 审计清单](docs/seo-geo-audit-checklist.md)
+- [Roadmap](ROADMAP.md)
 - [Wiki 源稿（中英双语）](docs/wiki/README.md)
 
 ---

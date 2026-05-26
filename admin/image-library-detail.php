@@ -13,6 +13,7 @@ session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database_admin.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/image_seo_service.php';
 require_once __DIR__ . '/includes/material-library-helpers.php';
 
 // 检查管理员登录
@@ -72,10 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             try {
                                 $stored = store_uploaded_image_file($file);
                                 $stored_paths[] = $stored['file_path'];
+                                $altText = ImageSeoService::defaultAltText((string) $stored['original_name']);
+                                $seoFilename = ImageSeoService::seoFilename((string) $stored['original_name'], (string) $stored['filename']);
 
                                 $stmt = $db->prepare("
-                                    INSERT INTO images (library_id, original_name, filename, file_name, file_path, file_size, mime_type, width, height, created_at)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                    INSERT INTO images (library_id, original_name, filename, file_name, file_path, file_size, mime_type, width, height, alt_text, caption, seo_filename, created_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                                 ");
                                 $stmt->execute([
                                     $library_id,
@@ -87,6 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $stored['mime_type'],
                                     $stored['width'],
                                     $stored['height'],
+                                    $altText,
+                                    $altText,
+                                    $seoFilename,
                                 ]);
                                 $uploaded_count++;
                             } catch (InvalidArgumentException $e) {
@@ -535,7 +541,7 @@ function formatFileSize($bytes) {
                             <div class="image-item" data-image-id="<?php echo $image['id']; ?>">
                                 <input type="checkbox" name="image_ids[]" value="<?php echo $image['id']; ?>" class="image-checkbox hidden absolute top-2 left-2 rounded border-gray-300 text-purple-600 shadow-sm focus:border-purple-300 focus:ring focus:ring-purple-200 focus:ring-opacity-50 z-10">
                                 <img src="../<?php echo htmlspecialchars($image['file_path']); ?>" 
-                                     alt="<?php echo htmlspecialchars($image['original_name']); ?>"
+                                     alt="<?php echo htmlspecialchars((string) ($image['alt_text'] ?? $image['original_name'])); ?>"
                                      data-action-call="showImageModal"
                                      data-action-args='<?php echo htmlspecialchars(json_encode([(string) $image['file_path'], (string) $image['original_name'], $image['width'] . 'x' . $image['height'], formatFileSize((int) $image['file_size'])], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES); ?>'>
                                 <div class="image-overlay">

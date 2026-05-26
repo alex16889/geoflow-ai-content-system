@@ -7,6 +7,7 @@ return [
     'nav.materials' => '素材管理',
     'nav.ai_config' => 'AI配置器',
     'nav.site_settings' => '网站设置',
+    'nav.seo_geo' => 'SEO/GEO',
     'nav.sites' => '站点管理',
     'nav.security' => '安全管理',
     'nav.admin_users' => '管理员',

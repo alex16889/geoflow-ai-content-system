@@ -4,6 +4,14 @@ This document tracks user-facing updates in the public repository. For future Gi
 
 ## 2026-05-27
 
+### SEO/GEO ops suite
+
+- Added dynamic `llms.txt` and `llms-full.txt`, generated per current site for AI crawler guidance.
+- Added the admin `SEO/GEO Workbench` for readiness checks, search snapshots, AI visibility records, competitor briefs, internal-link opportunities, redirect rules, 404 logs, and image SEO coverage.
+- Added Organization, FAQPage, and ItemList structured-data helpers; article pages emit FAQPage when clear FAQ pairs are detected.
+- Added image SEO metadata columns; new uploads and URL-import images now receive alt/caption/SEO filename metadata.
+- Added `ROADMAP.md` and `docs/seo-geo-audit-checklist.md` to document implemented capability, next steps, and launch audit boundaries.
+
 ### Open-source downstream release prep
 
 - Added origin and downstream-development notes while preserving the upstream Apache-2.0 license, `LICENSE`, `NOTICE`, and source author attributions.

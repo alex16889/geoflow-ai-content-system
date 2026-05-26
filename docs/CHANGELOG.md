@@ -4,6 +4,14 @@
 
 ## 2026-05-27
 
+### SEO/GEO ops suite
+
+- 新增动态 `llms.txt` 与 `llms-full.txt`，按当前站点输出 AI crawler 可读站点地图。
+- 新增后台 `SEO/GEO 工作台`，覆盖 readiness 审计、搜索表现快照、AI 可见性记录、竞品简报、内链建议、重定向规则、404 日志和图片 SEO 覆盖率。
+- 新增 Organization、FAQPage、ItemList 结构化数据 helper，文章页会在检测到清晰 FAQ 问答时输出 FAQPage。
+- 新增图片 SEO 元数据列，新上传和 URL 采集图片会自动写入 alt/caption/SEO 文件名元数据。
+- 新增 `ROADMAP.md` 与 `docs/seo-geo-audit-checklist.md`，明确已实现能力、后续计划和上线审计边界。
+
 ### Open-source downstream release prep
 
 - 补充项目来源与二开说明，明确保留上游 Apache-2.0 授权、`LICENSE`、`NOTICE` 和源码作者声明。

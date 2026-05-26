@@ -12,6 +12,8 @@ if (!defined('FEISHU_TREASURE')) {
     die('Access denied');
 }
 
+require_once __DIR__ . '/seo_geo_ops_schema.php';
+
 class DatabaseAdmin {
     private static $instance = null;
     private $pdo;
@@ -24,6 +26,7 @@ class DatabaseAdmin {
         $this->ensureCompatibilitySchema();
         geoflow_ensure_site_network_schema($this->pdo);
         $this->ensureGrowthAutomationSchema();
+        geoflow_ensure_seo_geo_ops_schema($this->pdo);
         $this->ensurePgvectorSchema();
         $this->insertDefaultData();
     }
@@ -878,16 +881,21 @@ class DatabaseAdmin {
         }
 
         try {
+            $embeddingDimensions = 3072;
+            $hnswMaxDimensions = 2000;
+
             if (!db_column_exists($this->pdo, 'knowledge_chunks', 'embedding_vector')) {
-                $this->pdo->exec("ALTER TABLE knowledge_chunks ADD COLUMN embedding_vector vector(3072)");
+                $this->pdo->exec("ALTER TABLE knowledge_chunks ADD COLUMN embedding_vector vector({$embeddingDimensions})");
             }
 
-            $this->pdo->exec("
-                CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding_hnsw
-                ON knowledge_chunks
-                USING hnsw (embedding_vector vector_cosine_ops)
-                WHERE embedding_vector IS NOT NULL
-            ");
+            if ($embeddingDimensions <= $hnswMaxDimensions) {
+                $this->pdo->exec("
+                    CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding_hnsw
+                    ON knowledge_chunks
+                    USING hnsw (embedding_vector vector_cosine_ops)
+                    WHERE embedding_vector IS NOT NULL
+                ");
+            }
         } catch (Throwable $e) {
             error_log('pgvector 向量列或索引初始化失败: ' . $e->getMessage());
         }

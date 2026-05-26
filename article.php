@@ -5,6 +5,7 @@ require_once 'includes/database.php';
 require_once 'includes/functions.php';
 require_once 'includes/seo_functions.php';
 require_once 'includes/theme_preview.php';
+require_once 'includes/redirect_service.php';
 
 $database = Database::getInstance();
 $db = $database->getPDO();
@@ -19,6 +20,10 @@ if ($article_id > 0) {
 }
 
 if (!$article) {
+    if (RedirectService::serveIfMatched($db, (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH))) {
+        exit;
+    }
+    RedirectService::logNotFound($db, (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH));
     header('HTTP/1.0 404 Not Found');
     exit('文章不存在');
 }
@@ -61,9 +66,11 @@ $page_keywords = generate_page_keywords(
 );
 $canonical_url = geo_absolute_url('article/' . $article['slug']);
 $article_summary = build_article_geo_summary($article, $article_tags);
+$faq_pairs = geoflow_extract_faq_pairs((string) $article_content);
 
 $structured_data_blocks = [
     generate_website_structured_data(),
+    generate_organization_structured_data(),
     generate_article_structured_data($article, $site_title),
     generate_breadcrumb_structured_data(array_values(array_filter([
         ['name' => '首页', 'url' => geo_absolute_url('/')],
@@ -71,6 +78,10 @@ $structured_data_blocks = [
         ['name' => $article['title'], 'url' => $canonical_url]
     ])))
 ];
+
+if (!empty($faq_pairs)) {
+    $structured_data_blocks[] = generate_faq_structured_data($faq_pairs);
+}
 
 $active_theme_id = geoflow_active_theme_id();
 if ($active_theme_id !== '' && geoflow_theme_has_template($active_theme_id, 'article')) {

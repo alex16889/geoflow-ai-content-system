@@ -142,6 +142,11 @@ if (!function_exists('geoflow_site_scoped_tables')) {
             'image_libraries',
             'knowledge_bases',
             'url_import_jobs',
+            'search_performance_snapshots',
+            'ai_visibility_checks',
+            'competitor_briefs',
+            'redirect_rules',
+            'not_found_logs',
         ];
     }
 }

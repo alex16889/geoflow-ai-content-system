@@ -22,12 +22,13 @@ Apache-2.0 license. Public releases keep the original
 documented in this README and [OPEN_SOURCE_RELEASE.md](OPEN_SOURCE_RELEASE.md).
 
 This downstream version focuses on multi-site content operations, site isolation,
-DataForSEO keyword import, sitemaps, IndexNow/Bing/Baidu submission queues,
-quality scoring, budget guardrails, admin UI improvements, local static assets,
+DataForSEO keyword import, sitemaps, `llms.txt`, IndexNow/Bing/Baidu submission
+queues, the SEO/GEO workbench, quality scoring, budget guardrails, admin UI improvements, local static assets,
 and deployment/security hardening. The upstream author is not responsible for
 downstream changes unless explicitly stated by the upstream project.
 
-For a quick SEO/GEO portfolio overview, start with [CASE_STUDY.md](CASE_STUDY.md).
+For a quick SEO/GEO portfolio overview, start with [CASE_STUDY.md](CASE_STUDY.md),
+[ROADMAP.md](ROADMAP.md), and the [SEO/GEO Audit Checklist](docs/seo-geo-audit-checklist.md).
 
 ---
 
@@ -41,7 +42,8 @@ For a quick SEO/GEO portfolio overview, start with [CASE_STUDY.md](CASE_STUDY.md
 | 🗂 Unified Material Management | Centralized management of title libraries, keyword libraries, image libraries, knowledge bases, and prompt templates |
 | 📈 Keyword Automation | Optional DataForSEO keyword import with site-level budget and spend tracking |
 | 📋 Review & Publishing Workflow | Three-stage workflow: Draft → Review → Publish, with optional auto-publishing |
-| 🔍 Search-Oriented Display Optimization | Article SEO metadata, Open Graph, structured data, sitemaps, and search-submission queues |
+| 🔍 Search-Oriented Display Optimization | Article SEO metadata, Open Graph, structured data, sitemaps, `llms.txt`, and search-submission queues |
+| 🧭 SEO/GEO Workbench | Local readiness audit, search snapshots, AI visibility records, competitor briefs, internal-link suggestions, redirects, and 404 logs |
 | 🧪 Quality Guardrails | Pre-publish checks for quality score, minimum length, and reviewable issues |
 | 🎨 Frontend Theme Preview | Preview-first theme packages, theme preview routes, and admin activation |
 | 🐳 Ready to Deploy | Supports Docker Compose — works on both local machines and servers |

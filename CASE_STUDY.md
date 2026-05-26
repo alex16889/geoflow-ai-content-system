@@ -20,7 +20,8 @@ I turned the original GEOFlow project into a practical multi-site AI content and
 - DataForSEO can import keyword suggestions into a selected keyword library with site-level budget limits.
 - AI-generated articles must pass quality gates before publishing.
 - Published or updated URLs enter provider-specific queues for IndexNow, Bing, and Baidu submission.
-- `sitemap.xml` and `robots.txt` are generated dynamically per active site.
+- `sitemap.xml`, `robots.txt`, `llms.txt`, and `llms-full.txt` are generated dynamically per active site.
+- The SEO/GEO workbench gives each site readiness checks, visibility records, competitor briefs, internal-link opportunities, redirects, 404 logs, and image SEO coverage.
 - Runtime secrets stay in environment variables, not in Git.
 
 ## 3. SEO/GEO Features
@@ -31,7 +32,10 @@ I turned the original GEOFlow project into a practical multi-site AI content and
 | Programmatic SEO | Task scheduler, worker queue, title libraries, prompt templates, article generation, draft/review/publish workflow |
 | Multi-site SEO | `sites` and `site_domains`, site-level canonical/domain context, site-isolated categories and articles |
 | Discovery | Dynamic sitemap, robots rules, IndexNow key file endpoint, provider-specific submission queue |
+| AI discovery | Dynamic `llms.txt` and `llms-full.txt` for current-site AI crawler guidance |
 | Search engines | IndexNow, Bing URL Submission API, Baidu active push; Google handled through sitemap and Search Console |
+| GEO workbench | Local readiness audit, search performance snapshots, AI answer visibility records, competitor briefs, internal-link opportunities |
+| Technical SEO | Redirect rules, 404 logs, image alt/caption metadata, Organization/FAQ/ItemList structured-data helpers |
 | Quality control | Minimum quality score, minimum word count, publish blocking, reviewable issue list |
 | Cost control | Site-level DataForSEO daily budget, spend ledger, pre-call budget estimate |
 | Security | Random initial admin password, environment-only API credentials, CSRF checks, local static assets, no external CDN dependency |
@@ -45,6 +49,9 @@ The upstream project gave the initial content-system idea and Apache-2.0 base. M
 - Added site clone workflow for launching new boutique sites without copying historical runtime data.
 - Added DataForSEO keyword import with budget guardrails.
 - Added dynamic sitemap and robots endpoints.
+- Added dynamic LLM discovery files and a site-scoped SEO/GEO workbench.
+- Added search performance and AI-answer visibility tracking records.
+- Added competitor briefs, internal-link suggestions, redirect rules, 404 logs, and image SEO metadata.
 - Added multi-provider search submission queue for IndexNow, Bing, and Baidu.
 - Added article quality scoring and publish gates.
 - Hardened admin password bootstrap, public error handling, SSRF-sensitive import behavior, and static asset delivery.
@@ -57,6 +64,7 @@ Current validation covers:
 
 - PHP syntax check across `admin/`, `includes/`, `api/`, and `bin/`.
 - Guardrail tests through `php tests/unit_growth_guardrails.php`.
+- SEO/GEO helper tests through `php tests/unit_seo_geo_ops.php`.
 - Tailwind production asset build through `npm run build:tailwind`.
 - Dependency audit through `npm audit --audit-level=moderate`.
 - OpenSpec validation for search submission and growth guardrails.

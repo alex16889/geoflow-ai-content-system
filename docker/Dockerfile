@@ -34,6 +34,7 @@ COPY archive.php /var/www/html/archive.php
 COPY article.php /var/www/html/article.php
 COPY category.php /var/www/html/category.php
 COPY index.php /var/www/html/index.php
+COPY llms.php /var/www/html/llms.php
 COPY llms.txt /var/www/html/llms.txt
 COPY llms-full.txt /var/www/html/llms-full.txt
 COPY robots.php /var/www/html/robots.php

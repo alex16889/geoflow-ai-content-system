@@ -27,6 +27,18 @@ if ($path === '/robots.txt') {
     return true;
 }
 
+if ($path === '/llms.txt') {
+    $_GET['mode'] = 'summary';
+    require_once __DIR__ . '/llms.php';
+    return true;
+}
+
+if ($path === '/llms-full.txt') {
+    $_GET['mode'] = 'full';
+    require_once __DIR__ . '/llms.php';
+    return true;
+}
+
 if (preg_match('#^/[A-Za-z0-9_-]{8,128}\.txt$#', $path)) {
     define('FEISHU_TREASURE', true);
     require_once __DIR__ . '/includes/config.php';
@@ -226,5 +238,24 @@ if (pathinfo($path, PATHINFO_EXTENSION) === 'php') {
 }
 
 // 文件不存在，返回false让PHP内置服务器处理
-return false;
+if (!defined('FEISHU_TREASURE')) {
+    define('FEISHU_TREASURE', true);
+}
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/database.php';
+require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/redirect_service.php';
+
+try {
+    if (RedirectService::serveIfMatched($db, $path)) {
+        return true;
+    }
+    RedirectService::logNotFound($db, $path);
+} catch (Throwable $e) {
+    error_log('[GEOflow] Router SEO ops error: ' . $e->getMessage());
+}
+
+header('HTTP/1.0 404 Not Found');
+echo 'Not Found';
+return true;
 ?>

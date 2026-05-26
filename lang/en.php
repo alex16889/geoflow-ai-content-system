@@ -7,6 +7,7 @@ return [
     'nav.materials' => 'Materials',
     'nav.ai_config' => 'AI Configurator',
     'nav.site_settings' => 'Site Settings',
+    'nav.seo_geo' => 'SEO/GEO',
     'nav.sites' => 'Sites',
     'nav.security' => 'Security',
     'nav.admin_users' => 'Admins',

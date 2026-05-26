@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $stmt = $db->prepare("
-    SELECT ai.*, i.file_path, i.original_name
+    SELECT ai.*, i.file_path, i.original_name, i.alt_text
     FROM article_images ai
     LEFT JOIN images i ON ai.image_id = i.id
     WHERE ai.article_id = ?
@@ -213,7 +213,7 @@ require_once __DIR__ . '/includes/header.php';
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                         <?php foreach ($article_images as $img): ?>
                             <div class="relative">
-                                <img src="<?php echo htmlspecialchars($img['file_path']); ?>" alt="<?php echo htmlspecialchars($img['original_name']); ?>" class="w-full h-32 object-cover rounded-lg">
+                                <img src="<?php echo htmlspecialchars($img['file_path']); ?>" alt="<?php echo htmlspecialchars((string) ($img['alt_text'] ?? $img['original_name'])); ?>" class="w-full h-32 object-cover rounded-lg">
                                 <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 rounded-b-lg"><?php echo htmlspecialchars($img['original_name']); ?></div>
                             </div>
                         <?php endforeach; ?>

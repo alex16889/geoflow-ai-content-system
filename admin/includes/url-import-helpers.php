@@ -703,6 +703,8 @@ function import_titles_from_result(PDO $db, int $libraryId, array $titles, array
 }
 
 function import_images_from_result(PDO $db, int $libraryId, array $images): int {
+    require_once __DIR__ . '/../../includes/image_seo_service.php';
+
     $uploadDir = dirname(__DIR__, 2) . '/uploads/images/url-import/';
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0755, true);
@@ -710,8 +712,8 @@ function import_images_from_result(PDO $db, int $libraryId, array $images): int 
 
     $inserted = 0;
     $insertStmt = $db->prepare("
-        INSERT INTO images (library_id, original_name, file_name, file_path, file_size, mime_type, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO images (library_id, original_name, file_name, file_path, file_size, mime_type, alt_text, caption, seo_filename, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ");
 
     foreach (array_slice($images, 0, 3) as $image) {
@@ -737,6 +739,8 @@ function import_images_from_result(PDO $db, int $libraryId, array $images): int 
         file_put_contents($absolutePath, $downloaded['binary']);
 
         $originalName = trim((string) ($image['label'] ?? 'URL采集图片'));
+        $altText = ImageSeoService::defaultAltText($originalName);
+        $seoFilename = ImageSeoService::seoFilename($originalName, $fileName);
         $insertStmt->execute([
             $libraryId,
             $originalName,
@@ -744,6 +748,9 @@ function import_images_from_result(PDO $db, int $libraryId, array $images): int 
             $relativePath,
             filesize($absolutePath) ?: strlen($downloaded['binary']),
             $downloaded['mime_type'] ?: 'image/jpeg',
+            $altText,
+            $altText,
+            $seoFilename,
         ]);
         $inserted += $insertStmt->rowCount() > 0 ? 1 : 0;
     }

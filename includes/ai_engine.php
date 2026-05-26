@@ -661,7 +661,11 @@ class AIEngine {
             
             $image = $images[$image_index];
             $imagePath = $this->normalizeImageAssetPath((string) ($image['file_path'] ?? ''));
-            $image_markdown = "\n![" . $image['original_name'] . "](" . $imagePath . ")\n";
+            $imageAlt = trim((string) ($image['alt_text'] ?? ''));
+            if ($imageAlt === '') {
+                $imageAlt = trim((string) ($image['original_name'] ?? 'Article image'));
+            }
+            $image_markdown = "\n![" . $imageAlt . "](" . $imagePath . ")\n";
             
             if ($pos < count($lines)) {
                 array_splice($lines, $pos + $image_index, 0, $image_markdown);

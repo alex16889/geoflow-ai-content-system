@@ -263,6 +263,52 @@ function generate_website_structured_data() {
 }
 
 /**
+ * 生成组织结构化数据，帮助搜索与 AI 系统识别站点实体。
+ */
+function generate_organization_structured_data() {
+    $site_name = site_setting_value('site_name', 'GEO+AI内容生成系统');
+    $site_description = site_setting_value('site_description', '基于AI的智能内容生成与发布平台');
+    $logo = site_setting_value('site_logo', '');
+
+    $data = [
+        "@context" => "https://schema.org",
+        "@type" => "Organization",
+        "name" => $site_name,
+        "description" => $site_description,
+        "url" => geo_absolute_url('/'),
+    ];
+
+    if ($logo !== '') {
+        $data['logo'] = preg_match('#^https?://#i', $logo) ? $logo : geo_absolute_url($logo);
+    }
+
+    return $data;
+}
+
+/**
+ * 生成 ItemList 结构化数据。
+ */
+function generate_item_list_structured_data($name, array $items, string $url = '') {
+    $structured_data = [
+        "@context" => "https://schema.org",
+        "@type" => "ItemList",
+        "name" => $name,
+        "url" => $url !== '' ? $url : geo_absolute_url('/'),
+        "itemListElement" => []
+    ];
+
+    foreach (array_slice($items, 0, 50) as $index => $item) {
+        $structured_data['itemListElement'][] = [
+            "@type" => "ListItem",
+            "position" => $index + 1,
+            "item" => is_array($item) ? $item : ["@type" => "Thing", "name" => (string) $item]
+        ];
+    }
+
+    return $structured_data;
+}
+
+/**
  * 生成通用集合页结构化数据
  */
 function generate_collection_structured_data($name, $description, $url, $items = [], $type = 'CollectionPage') {
@@ -319,6 +365,58 @@ function generate_faq_structured_data($faq_items) {
         "@type" => "FAQPage",
         "mainEntity" => $main_entity
     ];
+}
+
+/**
+ * 从 Markdown/HTML 内容中提取简明 FAQ 问答对。
+ */
+function geoflow_extract_faq_pairs(string $content, int $limit = 6): array {
+    $pairs = [];
+    $content = str_replace(["\r\n", "\r"], "\n", $content);
+
+    if (preg_match_all('/(?:^|\n)\s*(?:Q|Question|问题)[:：]\s*(.+?)\n\s*(?:A|Answer|答案)[:：]\s*(.+?)(?=\n\s*(?:Q|Question|问题)[:：]|\z)/isu', $content, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $question = clean_text_for_seo($match[1] ?? '', 180);
+            $answer = clean_markdown_for_summary($match[2] ?? '', 500);
+            if ($question !== '' && $answer !== '') {
+                $pairs[] = ['question' => $question, 'answer' => $answer];
+            }
+            if (count($pairs) >= $limit) {
+                return $pairs;
+            }
+        }
+    }
+
+    $lines = preg_split('/\n/u', $content) ?: [];
+    $count = count($lines);
+    for ($i = 0; $i < $count && count($pairs) < $limit; $i++) {
+        $line = trim((string) $lines[$i]);
+        if (!preg_match('/^\s*#{2,4}\s+(.+[?？])\s*$/u', $line, $headingMatch)) {
+            continue;
+        }
+
+        $answerLines = [];
+        for ($j = $i + 1; $j < $count; $j++) {
+            $next = trim((string) $lines[$j]);
+            if (preg_match('/^\s*#{1,6}\s+/u', $next)) {
+                break;
+            }
+            if ($next !== '') {
+                $answerLines[] = $next;
+            }
+            if (count($answerLines) >= 4) {
+                break;
+            }
+        }
+
+        $question = clean_text_for_seo($headingMatch[1] ?? '', 180);
+        $answer = clean_markdown_for_summary(implode(' ', $answerLines), 500);
+        if ($question !== '' && $answer !== '') {
+            $pairs[] = ['question' => $question, 'answer' => $answer];
+        }
+    }
+
+    return $pairs;
 }
 
 /**

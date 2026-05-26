@@ -41,6 +41,7 @@ $menu_items = [
     'materials.php' => ['name' => __('nav.materials'), 'icon' => 'folder'],
     'ai-configurator.php' => ['name' => __('nav.ai_config'), 'icon' => 'cpu'],
     'site-settings.php' => ['name' => __('nav.site_settings'), 'icon' => 'settings'],
+    'seo-geo-workbench.php' => ['name' => __('nav.seo_geo'), 'icon' => 'radar'],
     'security-settings.php' => ['name' => __('nav.security'), 'icon' => 'shield']
 ];
 

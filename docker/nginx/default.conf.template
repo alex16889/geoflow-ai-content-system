@@ -123,6 +123,26 @@ server {
         return 404;
     }
 
+    location = /llms.txt {
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/llms.php;
+        fastcgi_param DOCUMENT_ROOT $document_root;
+        fastcgi_param QUERY_STRING "mode=summary";
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_pass php:9000;
+        fastcgi_read_timeout 300;
+    }
+
+    location = /llms-full.txt {
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/llms.php;
+        fastcgi_param DOCUMENT_ROOT $document_root;
+        fastcgi_param QUERY_STRING "mode=full";
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_pass php:9000;
+        fastcgi_read_timeout 300;
+    }
+
     location ~ /\. {
         return 404;
     }

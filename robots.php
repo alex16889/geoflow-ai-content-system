@@ -28,6 +28,8 @@ $rules = [
     'Disallow: /data/',
     '',
     'Sitemap: ' . geo_absolute_url('sitemap.xml'),
+    '# AI crawler map: ' . geo_absolute_url('llms.txt'),
+    '# AI crawler full map: ' . geo_absolute_url('llms-full.txt'),
     '',
 ];
 

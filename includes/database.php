@@ -14,6 +14,7 @@ if (!defined('FEISHU_TREASURE')) {
 
 // 引入安全模块
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/seo_geo_ops_schema.php';
 
 class Database {
     private static $instance = null;
@@ -25,6 +26,7 @@ class Database {
         $this->ensureTaskQueueSchema();
         $this->ensureCompatibilitySchema();
         geoflow_ensure_site_network_schema($this->pdo);
+        geoflow_ensure_seo_geo_ops_schema($this->pdo);
         $this->ensureIndexes();
         $this->insertDefaultData();
     }

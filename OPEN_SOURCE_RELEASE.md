@@ -17,7 +17,8 @@ author notices.
 - Multi-site operations: `sites`, `site_domains`, current-site switching, site-level settings, and site-isolated admin workflows.
 - Site cloning: copy a clean site template without copying articles, jobs, API spend, logs, uploads, or queue history.
 - Keyword automation: DataForSEO keyword import with site-level budget guardrails and spend ledger.
-- Search discovery: dynamic `sitemap.xml`, `robots.txt`, IndexNow key file endpoint, and search-submission queues.
+- Search discovery: dynamic `sitemap.xml`, `robots.txt`, `llms.txt`, `llms-full.txt`, IndexNow key file endpoint, and search-submission queues.
+- SEO/GEO operations: local readiness workbench, search snapshots, AI visibility checks, competitor briefs, internal-link opportunities, redirects, 404 logs, and image SEO metadata.
 - Multi-provider push: IndexNow, Bing URL Submission API, and Baidu active push can be enabled per site.
 - Quality guardrails: publishing gates for minimum score, minimum length, and reviewable quality issues.
 - Security and deployment hardening: no fixed admin password, environment-only secrets, local static assets, reduced inline handlers, and stricter public error handling.
@@ -45,6 +46,7 @@ Before pushing a public GitHub repository:
 3. In the public mirror, run `sh bin/git/check-open-source-release.sh`.
 4. Run the relevant validation commands:
    - `php tests/unit_growth_guardrails.php`
+   - `php tests/unit_seo_geo_ops.php`
    - PHP syntax check for `admin/`, `includes/`, `api/`, `bin/`, and root entry files
    - `npm ci`
    - `npm run build:tailwind`
