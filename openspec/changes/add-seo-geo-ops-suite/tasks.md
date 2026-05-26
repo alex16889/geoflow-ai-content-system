@@ -25,10 +25,10 @@
 
 - [x] 5.1 Add roadmap and SEO/GEO audit checklist documentation.
 - [x] 5.2 Update README/CASE_STUDY/public release notes for the new suite.
-- [ ] 5.3 Regenerate the clean public mirror, run the public release check, commit, push, and verify CI.
+- [x] 5.3 Regenerate the clean public mirror, run the public release check, commit, push, and verify CI.
 
 ## 6. Validation
 
-- [ ] 6.1 Run full PHP syntax checks, unit tests, Tailwind build, npm audit, and OpenSpec validation.
-- [ ] 6.2 Do a code-review style self-check for security, data isolation, SEO risk, and deployment packaging.
-- [ ] 6.3 Update Obsidian project record with reusable decisions and commands without secrets.
+- [x] 6.1 Run full PHP syntax checks, unit tests, Tailwind build, npm audit, and OpenSpec validation.
+- [x] 6.2 Do a code-review style self-check for security, data isolation, SEO risk, and deployment packaging.
+- [x] 6.3 Update Obsidian project record with reusable decisions and commands without secrets.
