@@ -299,18 +299,35 @@ $page_header = '
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-    <section class="lg:col-span-2 space-y-6">
-        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex items-start justify-between gap-4">
+<div class="mx-auto max-w-5xl space-y-6">
+    <section class="space-y-6">
+        <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-100 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-6 text-white">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-950">一键拉取关键词</h2>
-                    <p class="mt-1 text-sm text-slate-500">建议先用 1 个种子词、20-50 条结果测试，稳定后再扩大。</p>
+                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">Keyword Workflow</div>
+                        <h2 class="mt-2 text-2xl font-bold">按当前站点一键拉词</h2>
+                        <p class="mt-2 max-w-2xl text-sm text-slate-300">默认使用当前站点内容生成种子词，中文市场配置已经填好。日常只需要检查种子词，然后点击导入。</p>
+                    </div>
+                    <span class="inline-flex w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-cyan-100 ring-1 ring-white/15">按请求计费，先小批量</span>
                 </div>
-                <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">按请求计费</span>
+                <div class="mt-6 grid gap-3 sm:grid-cols-3">
+                    <div class="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                        <div class="text-xs text-slate-300">1. 种子词</div>
+                        <div class="mt-1 text-sm font-semibold">从站点内容提取</div>
+                    </div>
+                    <div class="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                        <div class="text-xs text-slate-300">2. 市场</div>
+                        <div class="mt-1 text-sm font-semibold">简体中文 2702 / zh-CN</div>
+                    </div>
+                    <div class="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                        <div class="text-xs text-slate-300">3. 导入</div>
+                        <div class="mt-1 text-sm font-semibold">写入当前站点关键词库</div>
+                    </div>
+                </div>
             </div>
 
-            <form method="POST" class="mt-6 space-y-5">
+            <form method="POST" class="space-y-5 p-6">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                 <input type="hidden" name="action" value="import_suggestions">
 
@@ -323,7 +340,7 @@ require_once __DIR__ . '/includes/header.php';
                             </button>
                         <?php endif; ?>
                     </div>
-                    <textarea name="seed_keywords" data-seed-keywords rows="5" required class="mt-2 block w-full rounded-xl border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="例如：J9入口导航&#10;J9入口&#10;J9官网"><?php echo htmlspecialchars($seedTextareaValue); ?></textarea>
+                    <textarea name="seed_keywords" data-seed-keywords rows="4" required class="mt-2 block w-full rounded-2xl border-slate-300 text-base shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="例如：J9入口导航&#10;J9入口&#10;J9官网"><?php echo htmlspecialchars($seedTextareaValue); ?></textarea>
                     <p class="mt-2 text-xs text-slate-500">支持换行或逗号分隔；当前单次最多 <?php echo (int) $dataForSeoConfig['max_seed_count']; ?> 个种子词。</p>
                     <?php if (!empty($siteSeedKeywords)): ?>
                         <div class="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
@@ -384,37 +401,40 @@ require_once __DIR__ . '/includes/header.php';
                     <p data-market-preset-hint class="mt-1 text-xs text-slate-500"></p>
                 </div>
 
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">国家代码</label>
-                        <input type="number" name="location_code" data-location-code min="1" value="<?php echo htmlspecialchars((string) ($_POST['location_code'] ?? $dataForSeoConfig['default_location_code'])); ?>" class="mt-2 block w-full rounded-xl border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-slate-500">默认 2702 = 简体中文市场</p>
+                <details class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <summary class="cursor-pointer text-sm font-semibold text-slate-700">高级设置，默认不用改</summary>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700">国家代码</label>
+                            <input type="number" name="location_code" data-location-code min="1" value="<?php echo htmlspecialchars((string) ($_POST['location_code'] ?? $dataForSeoConfig['default_location_code'])); ?>" class="mt-2 block w-full rounded-xl border-slate-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <p class="mt-1 text-xs text-slate-500">默认 2702 = 简体中文市场</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700">语言</label>
+                            <input type="text" name="language_code" data-language-code value="<?php echo htmlspecialchars((string) ($_POST['language_code'] ?? $dataForSeoConfig['default_language_code'])); ?>" class="mt-2 block w-full rounded-xl border-slate-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <p class="mt-1 text-xs text-slate-500">默认 zh-CN</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700">每个词结果数</label>
+                            <input type="number" name="limit" min="1" max="<?php echo (int) $dataForSeoConfig['max_keyword_limit']; ?>" value="<?php echo htmlspecialchars((string) ($_POST['limit'] ?? 50)); ?>" class="mt-2 block w-full rounded-xl border-slate-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <p class="mt-1 text-xs text-slate-500">上限 <?php echo (int) $dataForSeoConfig['max_keyword_limit']; ?></p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700">最低搜索量</label>
+                            <input type="number" name="min_search_volume" min="0" value="<?php echo htmlspecialchars((string) ($_POST['min_search_volume'] ?? 0)); ?>" class="mt-2 block w-full rounded-xl border-slate-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <p class="mt-1 text-xs text-slate-500">0 表示不筛选</p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">语言</label>
-                        <input type="text" name="language_code" data-language-code value="<?php echo htmlspecialchars((string) ($_POST['language_code'] ?? $dataForSeoConfig['default_language_code'])); ?>" class="mt-2 block w-full rounded-xl border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-slate-500">默认 zh-CN</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">每个词结果数</label>
-                        <input type="number" name="limit" min="1" max="<?php echo (int) $dataForSeoConfig['max_keyword_limit']; ?>" value="<?php echo htmlspecialchars((string) ($_POST['limit'] ?? 50)); ?>" class="mt-2 block w-full rounded-xl border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-slate-500">上限 <?php echo (int) $dataForSeoConfig['max_keyword_limit']; ?></p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">最低搜索量</label>
-                        <input type="number" name="min_search_volume" min="0" value="<?php echo htmlspecialchars((string) ($_POST['min_search_volume'] ?? 0)); ?>" class="mt-2 block w-full rounded-xl border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-slate-500">0 表示不筛选</p>
-                    </div>
-                </div>
+                </details>
 
-                <div class="flex flex-col gap-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+                <div class="flex flex-col gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
                 <div>
                     当前站点：<span class="font-semibold text-slate-900"><?php echo htmlspecialchars((string) ($currentSite['name'] ?? 'Site')); ?></span>。
                     今日预算：<?php echo $dataForSeoDailyBudget > 0 ? '$' . number_format($dataForSeoDailyBudget, 2) : '不限额'; ?>，
                     已用：$<?php echo number_format($dataForSeoTodaySpend, 4); ?>。
                 </div>
-                    <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
-                        <i data-lucide="sparkles" class="mr-2 h-4 w-4"></i>拉取并导入
+                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                        <i data-lucide="sparkles" class="mr-2 h-4 w-4"></i>拉取并导入关键词
                     </button>
                 </div>
             </form>
@@ -458,54 +478,56 @@ require_once __DIR__ . '/includes/header.php';
         <?php endif; ?>
     </section>
 
-    <aside class="space-y-6">
-        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h2 class="text-lg font-semibold text-slate-950">API 状态</h2>
-                    <p class="mt-1 text-sm text-slate-500">密钥只从服务器环境变量读取。</p>
+    <details class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-700">API 状态和费用说明</summary>
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+            <div class="rounded-2xl bg-slate-50 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-950">API 状态</h2>
+                        <p class="mt-1 text-sm text-slate-500">密钥只从服务器环境变量读取。</p>
+                    </div>
+                    <?php if ($dataForSeoConfig['configured']): ?>
+                        <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">已配置</span>
+                    <?php else: ?>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">未配置</span>
+                    <?php endif; ?>
                 </div>
-                <?php if ($dataForSeoConfig['configured']): ?>
-                    <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">已配置</span>
-                <?php else: ?>
-                    <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">未配置</span>
+
+                <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                    <div><dt class="text-slate-500">API login</dt><dd class="truncate font-medium text-slate-900"><?php echo htmlspecialchars((string) ($dataForSeoConfig['login'] ?: '未设置')); ?></dd></div>
+                    <div><dt class="text-slate-500">默认市场</dt><dd class="font-medium text-slate-900">简体中文</dd></div>
+                    <div><dt class="text-slate-500">默认代码</dt><dd class="font-medium text-slate-900"><?php echo (int) $dataForSeoConfig['default_location_code']; ?> / <?php echo htmlspecialchars((string) $dataForSeoConfig['default_language_code']); ?></dd></div>
+                    <div><dt class="text-slate-500">单次结果上限</dt><dd class="font-medium text-slate-900"><?php echo (int) $dataForSeoConfig['max_keyword_limit']; ?></dd></div>
+                </dl>
+
+                <form method="POST" class="mt-4">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+                    <input type="hidden" name="action" value="test_connection">
+                    <button type="submit" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                        <i data-lucide="plug-zap" class="mr-2 h-4 w-4"></i>测试连接
+                    </button>
+                </form>
+
+                <?php if ($connectionStatus): ?>
+                    <div class="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
+                        <div>账号：<?php echo htmlspecialchars((string) $connectionStatus['login']); ?></div>
+                        <div class="mt-1">余额：<?php echo $connectionStatus['balance'] !== null ? '$' . number_format((float) $connectionStatus['balance'], 4) : '未知'; ?></div>
+                    </div>
                 <?php endif; ?>
             </div>
 
-            <dl class="mt-5 space-y-3 text-sm">
-                <div class="flex justify-between gap-3"><dt class="text-slate-500">API login</dt><dd class="truncate font-medium text-slate-900"><?php echo htmlspecialchars((string) ($dataForSeoConfig['login'] ?: '未设置')); ?></dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-slate-500">默认市场</dt><dd class="font-medium text-slate-900">简体中文</dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-slate-500">默认代码</dt><dd class="font-medium text-slate-900"><?php echo (int) $dataForSeoConfig['default_location_code']; ?> / <?php echo htmlspecialchars((string) $dataForSeoConfig['default_language_code']); ?></dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-slate-500">单次结果上限</dt><dd class="font-medium text-slate-900"><?php echo (int) $dataForSeoConfig['max_keyword_limit']; ?></dd></div>
-            </dl>
-
-            <form method="POST" class="mt-5">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
-                <input type="hidden" name="action" value="test_connection">
-                <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                    <i data-lucide="plug-zap" class="mr-2 h-4 w-4"></i>测试连接
-                </button>
-            </form>
-
-            <?php if ($connectionStatus): ?>
-                <div class="mt-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
-                    <div>账号：<?php echo htmlspecialchars((string) $connectionStatus['login']); ?></div>
-                    <div class="mt-1">余额：<?php echo $connectionStatus['balance'] !== null ? '$' . number_format((float) $connectionStatus['balance'], 4) : '未知'; ?></div>
-                </div>
-            <?php endif; ?>
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <h2 class="text-base font-semibold text-amber-950">费用保护</h2>
+                <ul class="mt-3 space-y-2 text-sm text-amber-900">
+                    <li>连接测试走免费接口，不扣费。</li>
+                    <li>关键词建议接口会扣费，默认限制小批量。</li>
+                    <li>当前默认使用 DataForSEO Google 可用的简体中文市场；中国大陆 2156 预留给后续 Bing/Baidu 接口。</li>
+                    <li>暂不接自动定时任务，避免后台静默消耗余额。</li>
+                </ul>
+            </div>
         </div>
-
-        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-amber-950">费用保护</h2>
-            <ul class="mt-3 space-y-2 text-sm text-amber-900">
-                <li>连接测试走免费接口，不扣费。</li>
-                <li>关键词建议接口会扣费，默认限制小批量。</li>
-                <li>当前默认使用 DataForSEO Google 可用的简体中文市场；中国大陆 2156 预留给后续 Bing/Baidu 接口。</li>
-                <li>暂不接自动定时任务，避免后台静默消耗余额。</li>
-                <li>后续可以按站点加每日预算和一键建站流程。</li>
-            </ul>
-        </div>
-    </aside>
+    </details>
 </div>
 
 <script>
