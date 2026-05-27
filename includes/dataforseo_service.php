@@ -13,6 +13,8 @@ class DataForSeoService {
     private const BASE_URL = 'https://api.dataforseo.com/v3/';
     private const USER_DATA_ENDPOINT = 'appendix/user_data';
     private const KEYWORD_SUGGESTIONS_ENDPOINT = 'dataforseo_labs/google/keyword_suggestions/live';
+    public const DEFAULT_LOCATION_CODE = 2702;
+    public const DEFAULT_LANGUAGE_CODE = 'zh-CN';
     private const ABSOLUTE_MAX_LIMIT = 200;
     private const ABSOLUTE_MAX_SEEDS = 10;
 
@@ -28,16 +30,16 @@ class DataForSeoService {
         string $login,
         string $password,
         int $timeoutSeconds = 45,
-        int $defaultLocationCode = 2840,
-        string $defaultLanguageCode = 'en',
+        int $defaultLocationCode = self::DEFAULT_LOCATION_CODE,
+        string $defaultLanguageCode = self::DEFAULT_LANGUAGE_CODE,
         int $maxKeywordLimit = 100,
         int $maxSeedCount = 5
     ) {
         $this->login = trim($login);
         $this->password = trim($password);
         $this->timeoutSeconds = max(15, min($timeoutSeconds, 120));
-        $this->defaultLocationCode = $defaultLocationCode > 0 ? $defaultLocationCode : 2840;
-        $this->defaultLanguageCode = trim($defaultLanguageCode) !== '' ? trim($defaultLanguageCode) : 'en';
+        $this->defaultLocationCode = $defaultLocationCode > 0 ? $defaultLocationCode : self::DEFAULT_LOCATION_CODE;
+        $this->defaultLanguageCode = trim($defaultLanguageCode) !== '' ? trim($defaultLanguageCode) : self::DEFAULT_LANGUAGE_CODE;
         $this->maxKeywordLimit = max(1, min($maxKeywordLimit, self::ABSOLUTE_MAX_LIMIT));
         $this->maxSeedCount = max(1, min($maxSeedCount, self::ABSOLUTE_MAX_SEEDS));
     }
@@ -47,8 +49,8 @@ class DataForSeoService {
             (string) env_value('DATAFORSEO_LOGIN', ''),
             (string) env_value('DATAFORSEO_PASSWORD', ''),
             env_int('DATAFORSEO_TIMEOUT', 45),
-            env_int('DATAFORSEO_DEFAULT_LOCATION_CODE', 2840),
-            (string) env_value('DATAFORSEO_DEFAULT_LANGUAGE_CODE', 'en'),
+            env_int('DATAFORSEO_DEFAULT_LOCATION_CODE', self::DEFAULT_LOCATION_CODE),
+            (string) env_value('DATAFORSEO_DEFAULT_LANGUAGE_CODE', self::DEFAULT_LANGUAGE_CODE),
             env_int('DATAFORSEO_MAX_KEYWORD_LIMIT', 100),
             env_int('DATAFORSEO_MAX_SEED_COUNT', 5)
         );
