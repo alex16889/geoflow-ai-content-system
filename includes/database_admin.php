@@ -752,7 +752,6 @@ class DatabaseAdmin {
 
         db_normalize_content_asset_paths($this->pdo);
 
-        $this->pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_site_settings_key ON site_settings(setting_key)");
         $this->pdo->exec("
             CREATE TABLE IF NOT EXISTS knowledge_chunks (
                 id BIGSERIAL PRIMARY KEY,

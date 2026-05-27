@@ -836,7 +836,6 @@ class Database {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_site_settings_key ON site_settings(setting_key);
         ");
 
         $columnsToAdd = [
