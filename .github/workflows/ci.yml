@@ -50,6 +50,7 @@ jobs:
         run: |
           php tests/unit_multisite_schema_guards.php
           php tests/unit_dataforseo_defaults.php
+          php tests/unit_dataforseo_duplicate_guard.php
           php tests/unit_dataforseo_request_splitting.php
           php tests/unit_growth_guardrails.php
           php tests/unit_seo_geo_ops.php

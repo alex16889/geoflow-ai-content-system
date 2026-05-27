@@ -117,6 +117,19 @@ function keyword_research_site_seed_keywords(PDO $db, array $site, int $siteId, 
     return array_slice(array_values($seeds), 0, max(1, $limit));
 }
 
+function keyword_research_parse_seed_keywords(string $seedText): array
+{
+    $seeds = [];
+    foreach (preg_split('/[\r\n,，]+/u', $seedText, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $seed) {
+        $seed = trim((string) $seed);
+        if ($seed !== '') {
+            $seeds[mb_strtolower($seed)] = $seed;
+        }
+    }
+
+    return array_values($seeds);
+}
+
 $csrfToken = generate_csrf_token();
 $message = '';
 $error = '';
@@ -164,17 +177,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $minSearchVolume = max(0, (int) ($_POST['min_search_volume'] ?? 0));
                 $locationCode = max(1, (int) ($_POST['location_code'] ?? $dataForSeoConfig['default_location_code']));
                 $languageCode = trim((string) ($_POST['language_code'] ?? $dataForSeoConfig['default_language_code']));
+                $forceRefreshMetrics = !empty($_POST['force_refresh_metrics']);
 
                 if ($seedText === '') {
                     throw new InvalidArgumentException('请输入种子关键词');
                 }
 
-                $seedCount = count(array_unique(array_filter(array_map(
-                    static fn($seed) => mb_strtolower(trim((string) $seed)),
-                    preg_split('/[\r\n,，]+/u', $seedText, -1, PREG_SPLIT_NO_EMPTY) ?: []
-                ))));
-                $estimatedCost = SiteSpendGuardService::estimateDataForSeoCost($seedCount, $limit);
-                SiteSpendGuardService::assertCanSpend($db, $currentSiteId, SiteSpendGuardService::PROVIDER_DATAFORSEO, $estimatedCost, $dataForSeoDailyBudget);
+                $requestedSeeds = keyword_research_parse_seed_keywords($seedText);
+                $seedCount = count($requestedSeeds);
 
                 if ($targetMode === 'existing') {
                     if ($libraryId <= 0) {
@@ -192,68 +202,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                $suggestions = $dataForSeo->fetchKeywordSuggestions([$seedText], [
-                    'limit' => $limit,
-                    'location_code' => $locationCode,
-                    'language_code' => $languageCode,
-                    'min_search_volume' => $minSearchVolume,
-                ]);
-
-                if (empty($suggestions['items'])) {
-                    throw new RuntimeException('DataForSEO 本次没有返回可导入关键词，请换种子词或降低筛选条件');
+                $seedsForRequest = $requestedSeeds;
+                $skippedExistingSeeds = [];
+                if ($targetMode === 'existing' && !$forceRefreshMetrics) {
+                    $seedPlan = material_dataforseo_seed_import_plan($db, $libraryId, $requestedSeeds, $locationCode, $languageCode, $limit);
+                    $seedsForRequest = $seedPlan['request_seeds'];
+                    $skippedExistingSeeds = $seedPlan['skipped_seeds'];
                 }
 
-                $db->beginTransaction();
-
-                if ($targetMode !== 'existing') {
-                    if (geoflow_table_has_site_column($db, 'keyword_libraries')) {
-                        $createStmt = $db->prepare("
-                            INSERT INTO keyword_libraries (site_id, name, description, keyword_count, created_at, updated_at)
-                            VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ");
-                        $createStmt->execute([$currentSiteId, $newLibraryName, $newLibraryDescription]);
-                    } else {
-                        $createStmt = $db->prepare("
-                            INSERT INTO keyword_libraries (name, description, keyword_count, created_at, updated_at)
-                            VALUES (?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ");
-                        $createStmt->execute([$newLibraryName, $newLibraryDescription]);
-                    }
-                    $libraryId = db_last_insert_id($db, 'keyword_libraries');
-                }
-
-                $importResult = material_import_keywords($db, $libraryId, $suggestions['items'], ['source' => 'dataforseo']);
-                SiteSpendGuardService::recordSpend($db, $currentSiteId, SiteSpendGuardService::PROVIDER_DATAFORSEO, (float) $suggestions['cost'], [
-                    'event_type' => 'keyword_suggestions',
-                    'units' => count($suggestions['items']),
-                    'description' => 'DataForSEO keyword suggestions import',
-                    'metadata' => [
+                if (empty($seedsForRequest)) {
+                    $lastImportSummary = [
                         'library_id' => $libraryId,
-                        'seed_count' => $seedCount,
+                        'requested_seed_count' => $seedCount,
+                        'requested_limit' => $limit,
+                        'returned_count' => 0,
+                        'cost' => 0.0,
+                        'skipped_existing_seeds' => $skippedExistingSeeds,
+                        'import' => [
+                            'total' => 0,
+                            'imported' => 0,
+                            'duplicate' => 0,
+                            'updated' => 0,
+                            'samples' => [],
+                        ],
+                    ];
+
+                    $message = sprintf(
+                        '已跳过 %d 个已抓过的种子词，当前库和市场已有不少于 %d 条结果，本次没有请求 DataForSEO，计费 $0。',
+                        count($skippedExistingSeeds),
+                        $limit
+                    );
+                } else {
+                    $estimatedCost = SiteSpendGuardService::estimateDataForSeoCost(count($seedsForRequest), $limit);
+                    SiteSpendGuardService::assertCanSpend($db, $currentSiteId, SiteSpendGuardService::PROVIDER_DATAFORSEO, $estimatedCost, $dataForSeoDailyBudget);
+
+                    $suggestions = $dataForSeo->fetchKeywordSuggestions($seedsForRequest, [
                         'limit' => $limit,
-                        'estimated_cost' => $estimatedCost,
-                    ],
-                ]);
-                $db->commit();
-                $dataForSeoTodaySpend += (float) $suggestions['cost'];
+                        'location_code' => $locationCode,
+                        'language_code' => $languageCode,
+                        'min_search_volume' => $minSearchVolume,
+                    ]);
 
-                $lastImportSummary = [
-                    'library_id' => $libraryId,
-                    'requested_seed_count' => (int) $suggestions['requested_seed_count'],
-                    'requested_limit' => (int) $suggestions['requested_limit'],
-                    'returned_count' => count($suggestions['items']),
-                    'cost' => (float) $suggestions['cost'],
-                    'import' => $importResult,
-                ];
+                    if (empty($suggestions['items'])) {
+                        throw new RuntimeException('DataForSEO 本次没有返回可导入关键词，请换种子词或降低筛选条件');
+                    }
 
-                $message = sprintf(
-                    '已从 DataForSEO 拉取 %d 个关键词，新增 %d 个，重复 %d 个，更新指标 %d 个，本次 API 计费约 $%.6f',
-                    $lastImportSummary['returned_count'],
-                    (int) $importResult['imported'],
-                    (int) $importResult['duplicate'],
-                    (int) $importResult['updated'],
-                    $lastImportSummary['cost']
-                );
+                    $db->beginTransaction();
+
+                    if ($targetMode !== 'existing') {
+                        if (geoflow_table_has_site_column($db, 'keyword_libraries')) {
+                            $createStmt = $db->prepare("
+                                INSERT INTO keyword_libraries (site_id, name, description, keyword_count, created_at, updated_at)
+                                VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            ");
+                            $createStmt->execute([$currentSiteId, $newLibraryName, $newLibraryDescription]);
+                        } else {
+                            $createStmt = $db->prepare("
+                                INSERT INTO keyword_libraries (name, description, keyword_count, created_at, updated_at)
+                                VALUES (?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            ");
+                            $createStmt->execute([$newLibraryName, $newLibraryDescription]);
+                        }
+                        $libraryId = db_last_insert_id($db, 'keyword_libraries');
+                    }
+
+                    $importResult = material_import_keywords($db, $libraryId, $suggestions['items'], ['source' => 'dataforseo']);
+                    SiteSpendGuardService::recordSpend($db, $currentSiteId, SiteSpendGuardService::PROVIDER_DATAFORSEO, (float) $suggestions['cost'], [
+                        'event_type' => 'keyword_suggestions',
+                        'units' => count($suggestions['items']),
+                        'description' => 'DataForSEO keyword suggestions import',
+                        'metadata' => [
+                            'library_id' => $libraryId,
+                            'seed_count' => count($seedsForRequest),
+                            'requested_seed_count' => $seedCount,
+                            'skipped_existing_seed_count' => count($skippedExistingSeeds),
+                            'limit' => $limit,
+                            'estimated_cost' => $estimatedCost,
+                        ],
+                    ]);
+                    $db->commit();
+                    $dataForSeoTodaySpend += (float) $suggestions['cost'];
+
+                    $lastImportSummary = [
+                        'library_id' => $libraryId,
+                        'requested_seed_count' => $seedCount,
+                        'api_requested_seed_count' => (int) $suggestions['requested_seed_count'],
+                        'requested_limit' => (int) $suggestions['requested_limit'],
+                        'returned_count' => count($suggestions['items']),
+                        'cost' => (float) $suggestions['cost'],
+                        'skipped_existing_seeds' => $skippedExistingSeeds,
+                        'import' => $importResult,
+                    ];
+
+                    $skipText = !empty($skippedExistingSeeds) ? sprintf('；已跳过 %d 个已抓过种子词', count($skippedExistingSeeds)) : '';
+                    $message = sprintf(
+                        '已从 DataForSEO 拉取 %d 个关键词，新增 %d 个，重复 %d 个，更新指标 %d 个，本次 API 计费约 $%.6f%s',
+                        $lastImportSummary['returned_count'],
+                        (int) $importResult['imported'],
+                        (int) $importResult['duplicate'],
+                        (int) $importResult['updated'],
+                        $lastImportSummary['cost'],
+                        $skipText
+                    );
+                }
             }
         } catch (Throwable $e) {
             if ($db->inTransaction()) {
@@ -425,6 +476,13 @@ require_once __DIR__ . '/includes/header.php';
                             <p class="mt-1 text-xs text-slate-500">0 表示不筛选</p>
                         </div>
                     </div>
+                    <label class="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                        <input type="checkbox" name="force_refresh_metrics" value="1" class="mt-1 rounded border-amber-300 text-amber-600 focus:ring-amber-500" <?php echo !empty($_POST['force_refresh_metrics']) ? 'checked' : ''; ?>>
+                        <span>
+                            <span class="font-semibold">强制刷新已有关键词指标</span>
+                            <span class="mt-1 block text-xs text-amber-800">默认不勾选：同一关键词库、同一 seed、同一市场已经抓够结果时会跳过，不再扣 DataForSEO 费用。</span>
+                        </span>
+                    </label>
                 </details>
 
                 <div class="flex flex-col gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
@@ -450,6 +508,18 @@ require_once __DIR__ . '/includes/header.php';
                     <div class="rounded-xl bg-white p-4"><div class="text-xs text-slate-500">更新指标</div><div class="mt-1 text-2xl font-bold"><?php echo (int) $lastImportSummary['import']['updated']; ?></div></div>
                     <div class="rounded-xl bg-white p-4"><div class="text-xs text-slate-500">计费</div><div class="mt-1 text-2xl font-bold">$<?php echo number_format((float) $lastImportSummary['cost'], 6); ?></div></div>
                 </div>
+                <?php if (!empty($lastImportSummary['skipped_existing_seeds'])): ?>
+                    <div class="mt-4 rounded-xl border border-emerald-200 bg-white p-4 text-sm text-emerald-900">
+                        <div class="font-semibold">已自动跳过 <?php echo count($lastImportSummary['skipped_existing_seeds']); ?> 个已抓过种子词，本次未重复扣这些 seed 的费用。</div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <?php foreach ($lastImportSummary['skipped_existing_seeds'] as $skippedSeed): ?>
+                                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
+                                    <?php echo htmlspecialchars((string) $skippedSeed['seed']); ?> · 已有 <?php echo (int) $skippedSeed['existing_count']; ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <?php if (!empty($lastImportSummary['import']['samples'])): ?>
                     <div class="mt-5 overflow-hidden rounded-xl border border-emerald-100 bg-white">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">

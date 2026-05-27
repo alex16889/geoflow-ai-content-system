@@ -191,6 +191,56 @@ function material_import_keywords(PDO $db, int $libraryId, array $rows, array $d
     ];
 }
 
+function material_dataforseo_seed_import_plan(PDO $db, int $libraryId, array $seeds, int $locationCode, string $languageCode, int $requestedLimit): array {
+    $normalizedSeeds = [];
+    foreach ($seeds as $seed) {
+        $seed = trim((string) $seed);
+        if ($seed !== '') {
+            $normalizedSeeds[material_keyword_dedupe_key($seed)] = $seed;
+        }
+    }
+
+    $requestSeeds = array_values($normalizedSeeds);
+    $skippedSeeds = [];
+    $metricColumns = material_keyword_available_metric_columns($db);
+    foreach (['source', 'seed_keyword', 'location_code', 'language_code'] as $requiredColumn) {
+        if (!in_array($requiredColumn, $metricColumns, true)) {
+            return ['request_seeds' => $requestSeeds, 'skipped_seeds' => $skippedSeeds];
+        }
+    }
+
+    $requestedLimit = max(1, $requestedLimit);
+    $stmt = $db->prepare("
+        SELECT COUNT(*) AS existing_count, MAX(metrics_updated_at) AS last_metrics_at
+        FROM keywords
+        WHERE library_id = ?
+          AND source = 'dataforseo'
+          AND location_code = ?
+          AND LOWER(language_code) = LOWER(?)
+          AND LOWER(seed_keyword) = LOWER(?)
+    ");
+
+    $requestSeeds = [];
+    foreach ($normalizedSeeds as $seed) {
+        $stmt->execute([$libraryId, $locationCode, $languageCode, $seed]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $existingCount = (int) ($row['existing_count'] ?? 0);
+
+        if ($existingCount >= $requestedLimit) {
+            $skippedSeeds[] = [
+                'seed' => $seed,
+                'existing_count' => $existingCount,
+                'last_metrics_at' => (string) ($row['last_metrics_at'] ?? ''),
+            ];
+            continue;
+        }
+
+        $requestSeeds[] = $seed;
+    }
+
+    return ['request_seeds' => $requestSeeds, 'skipped_seeds' => $skippedSeeds];
+}
+
 function refresh_title_library_count(PDO $db, int $libraryId): void {
     $stmt = $db->prepare("
         UPDATE title_libraries
