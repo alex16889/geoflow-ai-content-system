@@ -26,7 +26,7 @@ class SiteTemplateService {
         $slug = self::uniqueSiteSlug($db, $target['slug'] ?? $name);
         $siteTitle = trim((string) ($target['site_title'] ?? '')) ?: $name;
         $description = trim((string) ($target['description'] ?? ($source['description'] ?? '')));
-        $primaryDomain = geoflow_normalize_host((string) ($target['primary_domain'] ?? ''));
+        $primaryDomain = geoflow_normalize_domain_input((string) ($target['primary_domain'] ?? ''));
         $aliasDomains = self::parseAliasDomains((string) ($target['alias_domains'] ?? ''));
         $domains = array_values(array_unique(array_filter(array_merge($primaryDomain !== '' ? [$primaryDomain] : [], $aliasDomains))));
 
@@ -94,7 +94,7 @@ class SiteTemplateService {
     private static function parseAliasDomains(string $input): array {
         $domains = [];
         foreach (preg_split('/[\s,]+/', $input, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $part) {
-            $domain = geoflow_normalize_host((string) $part);
+            $domain = geoflow_normalize_domain_input((string) $part);
             if ($domain !== '') {
                 $domains[] = $domain;
             }

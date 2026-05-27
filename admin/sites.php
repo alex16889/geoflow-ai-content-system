@@ -52,7 +52,7 @@ function build_site_slug(PDO $db, string $name, string $rawSlug = '', int $exclu
 
 function normalize_site_domain_input(string $domain): string
 {
-    return geoflow_normalize_host($domain);
+    return geoflow_normalize_domain_input($domain);
 }
 
 function parse_site_domains(string $primaryDomain, string $aliasDomains): array

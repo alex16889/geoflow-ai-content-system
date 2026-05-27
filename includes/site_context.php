@@ -60,6 +60,25 @@ if (!function_exists('geoflow_normalize_host')) {
     }
 }
 
+if (!function_exists('geoflow_normalize_domain_input')) {
+    function geoflow_normalize_domain_input(string $value): string {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $value)) {
+            $host = parse_url($value, PHP_URL_HOST);
+            $candidate = is_string($host) ? $host : '';
+        } else {
+            $candidate = preg_split('/[\/?#]/', $value, 2)[0] ?? '';
+        }
+
+        $domain = geoflow_normalize_host((string) $candidate);
+        return in_array($domain, ['http', 'https'], true) ? '' : $domain;
+    }
+}
+
 if (!function_exists('geoflow_slugify_site_name')) {
     function geoflow_slugify_site_name(string $name): string {
         $source = trim($name);
@@ -379,7 +398,7 @@ if (!function_exists('geoflow_current_site_base_url')) {
             return $scheme . '://' . $host;
         }
 
-        $primaryDomain = geoflow_normalize_host((string) ($site['primary_domain'] ?? ''));
+        $primaryDomain = geoflow_normalize_domain_input((string) ($site['primary_domain'] ?? ''));
         if ($primaryDomain !== '') {
             return $scheme . '://' . $primaryDomain;
         }

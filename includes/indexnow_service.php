@@ -25,7 +25,7 @@ class IndexNowService {
     }
 
     public static function publicBaseUrlForSite(array $site): string {
-        $domain = geoflow_normalize_host((string) ($site['primary_domain'] ?? ''));
+        $domain = geoflow_normalize_domain_input((string) ($site['primary_domain'] ?? ''));
         if ($domain === '') {
             return '';
         }
