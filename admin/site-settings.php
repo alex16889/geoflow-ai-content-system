@@ -224,6 +224,25 @@ foreach ($defaults as $key => $default_value) {
 $discovery_sitemap_url = SearchSubmissionService::sitemapUrlForSite($current_site ?: []);
 $discovery_robots_url = SearchSubmissionService::robotsUrlForSite($current_site ?: []);
 $discovery_base_url = IndexNowService::publicBaseUrlForSite($current_site ?: []);
+$current_site_id = (int) ($current_site['id'] ?? 0);
+$current_primary_domain = trim((string) ($current_site['primary_domain'] ?? ''));
+$current_site_url = $discovery_base_url !== '' ? $discovery_base_url : geo_absolute_url('/');
+$current_site_manage_url = $current_site_id > 0 ? 'sites.php?action=edit&id=' . $current_site_id : 'sites.php';
+$current_site_domains = [];
+if ($current_site_id > 0 && geoflow_db_table_exists($db, 'site_domains')) {
+    try {
+        $domainStmt = $db->prepare("
+            SELECT domain, is_primary
+            FROM site_domains
+            WHERE site_id = ?
+            ORDER BY is_primary DESC, domain ASC
+        ");
+        $domainStmt->execute([$current_site_id]);
+        $current_site_domains = $domainStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        $current_site_domains = [];
+    }
+}
 $has_public_discovery_domain = IndexNowService::isSubmittableBaseUrl($discovery_base_url);
 $bing_key_configured = trim((string) ($current_settings['bing_url_submission_api_key'] ?? '')) !== '';
 $baidu_endpoint_configured = trim((string) ($current_settings['baidu_url_submission_endpoint'] ?? '')) !== '';
@@ -263,6 +282,66 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
             <?php endif; ?>
 
+            <div class="mb-6 rounded-2xl border border-blue-100 bg-blue-50/70 p-5 shadow-sm">
+                <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">SITE ROUTING</span>
+                            <h2 class="text-base font-semibold text-gray-900"><?php echo __('site_settings.routing.title'); ?></h2>
+                        </div>
+                        <p class="mt-2 text-sm text-gray-600"><?php echo __('site_settings.routing.desc'); ?></p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <?php if (is_super_admin()): ?>
+                            <a href="<?php echo htmlspecialchars($current_site_manage_url); ?>" class="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                                <i data-lucide="globe" class="mr-2 h-4 w-4"></i>
+                                <?php echo __('site_settings.routing.edit_domain'); ?>
+                            </a>
+                            <a href="sites.php" class="inline-flex items-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
+                                <i data-lucide="copy-plus" class="mr-2 h-4 w-4"></i>
+                                <?php echo __('site_settings.routing.clone_template'); ?>
+                            </a>
+                        <?php endif; ?>
+                        <a href="#site-template-section" class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            <i data-lucide="layout-template" class="mr-2 h-4 w-4"></i>
+                            <?php echo __('site_settings.routing.frontend_templates'); ?>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid gap-4 md:grid-cols-3">
+                    <div class="rounded-xl border border-white/80 bg-white p-4">
+                        <div class="text-xs font-medium uppercase tracking-wide text-gray-500"><?php echo __('site_settings.routing.current_url'); ?></div>
+                        <div class="mt-2 break-all text-sm font-semibold text-gray-900"><?php echo htmlspecialchars($current_site_url); ?></div>
+                        <div class="mt-2 text-xs text-gray-500"><?php echo __('site_settings.routing.current_url_help'); ?></div>
+                    </div>
+                    <div class="rounded-xl border border-white/80 bg-white p-4">
+                        <div class="text-xs font-medium uppercase tracking-wide text-gray-500"><?php echo __('site_settings.routing.primary_domain'); ?></div>
+                        <div class="mt-2 break-all text-sm font-semibold <?php echo $current_primary_domain !== '' ? 'text-gray-900' : 'text-amber-700'; ?>">
+                            <?php echo htmlspecialchars($current_primary_domain !== '' ? $current_primary_domain : __('site_settings.routing.domain_missing')); ?>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-500"><?php echo __('site_settings.routing.primary_domain_help'); ?></div>
+                    </div>
+                    <div class="rounded-xl border border-white/80 bg-white p-4">
+                        <div class="text-xs font-medium uppercase tracking-wide text-gray-500"><?php echo __('site_settings.routing.domain_bindings'); ?></div>
+                        <div class="mt-2 space-y-1 text-sm text-gray-900">
+                            <?php if (!empty($current_site_domains)): ?>
+                                <?php foreach ($current_site_domains as $domainRow): ?>
+                                    <div class="break-all">
+                                        <?php echo htmlspecialchars((string) ($domainRow['domain'] ?? '')); ?>
+                                        <?php if ((int) ($domainRow['is_primary'] ?? 0) === 1): ?>
+                                            <span class="ml-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700"><?php echo __('site_settings.routing.primary_badge'); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div class="text-amber-700"><?php echo __('site_settings.routing.no_bindings'); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <style>
                 .settings-accordion > summary {
                     list-style: none;
@@ -283,7 +362,7 @@ require_once __DIR__ . '/includes/header.php';
 
             <div class="space-y-6">
             <!-- 网站设置表单 -->
-            <details class="settings-accordion bg-white shadow rounded-lg">
+            <details id="site-template-section" class="settings-accordion bg-white shadow rounded-lg">
                 <summary class="px-6 py-4 cursor-pointer flex items-center justify-between gap-4">
                     <div>
                         <h3 class="text-lg font-medium text-gray-900"><?php echo __('site_settings.section_basic'); ?></h3>
