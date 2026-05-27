@@ -103,9 +103,11 @@ class DataForSeoService {
         $languageCode = $languageCode !== '' ? $languageCode : $this->defaultLanguageCode;
         $minSearchVolume = max(0, (int) ($options['min_search_volume'] ?? 0));
 
-        $payload = [];
+        $items = [];
+        $totalCost = 0.0;
+        $lastStatusMessage = 'Ok.';
         foreach ($seeds as $seed) {
-            $task = [
+            $payload = [[
                 'keyword' => $seed,
                 'location_code' => $locationCode,
                 'language_code' => $languageCode,
@@ -115,29 +117,34 @@ class DataForSeoService {
                 'ignore_synonyms' => true,
                 'limit' => $limit,
                 'order_by' => ['keyword_info.search_volume,desc'],
-            ];
+            ]];
 
             if ($minSearchVolume > 0) {
-                $task['filters'] = ['keyword_info.search_volume', '>=', $minSearchVolume];
+                $payload[0]['filters'] = ['keyword_info.search_volume', '>=', $minSearchVolume];
             }
 
-            $payload[] = $task;
+            // DataForSEO keyword_suggestions/live only accepts one task per request.
+            // Keep the UI multi-seed friendly by splitting requests here.
+            $response = $this->request('POST', self::KEYWORD_SUGGESTIONS_ENDPOINT, $payload);
+            $totalCost += isset($response['cost']) ? (float) $response['cost'] : 0.0;
+            $lastStatusMessage = (string) ($response['status_message'] ?? $lastStatusMessage);
+
+            foreach ($this->normalizeKeywordSuggestionItems($response) as $item) {
+                $items[mb_strtolower((string) $item['keyword'])] = $item;
+            }
         }
 
-        $response = $this->request('POST', self::KEYWORD_SUGGESTIONS_ENDPOINT, $payload);
-        $items = $this->normalizeKeywordSuggestionItems($response);
-
         return [
-            'status_code' => (int) ($response['status_code'] ?? 0),
-            'status_message' => (string) ($response['status_message'] ?? ''),
-            'cost' => isset($response['cost']) ? (float) $response['cost'] : 0.0,
+            'status_code' => 20000,
+            'status_message' => $lastStatusMessage,
+            'cost' => $totalCost,
             'requested_seed_count' => count($seeds),
             'requested_limit' => $limit,
-            'items' => $items,
+            'items' => array_values($items),
         ];
     }
 
-    private function request(string $method, string $path, ?array $payload = null): array {
+    protected function request(string $method, string $path, ?array $payload = null): array {
         if (!$this->isConfigured()) {
             throw new DataForSeoException('DataForSEO 未配置，请先在服务器环境变量中设置 DATAFORSEO_LOGIN 和 DATAFORSEO_PASSWORD');
         }
@@ -179,12 +186,29 @@ class DataForSeoService {
 
         $statusCode = (int) ($decoded['status_code'] ?? 0);
         if ($httpCode >= 400 || $statusCode !== 20000 || (int) ($decoded['tasks_error'] ?? 0) > 0) {
-            $taskMessage = $decoded['tasks'][0]['status_message'] ?? '';
-            $message = (string) ($decoded['status_message'] ?? $taskMessage ?: 'unknown error');
+            $message = $this->extractFailureMessage($decoded);
             throw new DataForSeoException('DataForSEO 请求未成功：' . $message);
         }
 
         return $decoded;
+    }
+
+    private function extractFailureMessage(array $decoded): string {
+        foreach (($decoded['tasks'] ?? []) as $task) {
+            if (!is_array($task)) {
+                continue;
+            }
+
+            if ((int) ($task['status_code'] ?? 0) !== 20000) {
+                $taskMessage = trim((string) ($task['status_message'] ?? ''));
+                if ($taskMessage !== '') {
+                    return $taskMessage;
+                }
+            }
+        }
+
+        $topMessage = trim((string) ($decoded['status_message'] ?? ''));
+        return $topMessage !== '' ? $topMessage : 'unknown error';
     }
 
     private function normalizeSeeds(array $seedKeywords): array {
