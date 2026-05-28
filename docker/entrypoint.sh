@@ -24,4 +24,9 @@ mkdir -p \
 
 touch logs/.docker-ready
 
+if [ "$(id -u)" = "0" ]; then
+  chown -R www-data:www-data data logs uploads
+  chmod -R u+rwX,g+rwX data logs uploads
+fi
+
 exec "$@"
