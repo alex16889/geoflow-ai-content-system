@@ -151,7 +151,7 @@ class JobQueueService {
         $task->execute([$taskId]);
     }
 
-    public function failJob(int $jobId, int $taskId, string $errorMessage, int $durationMs, int $retryDelaySeconds = 60): void {
+    public function failJob(int $jobId, int $taskId, string $errorMessage, int $durationMs, int $retryDelaySeconds = 60, bool $forceFinal = false): void {
         $stmt = $this->db->prepare("
             SELECT attempt_count, max_attempts
             FROM job_queue
@@ -165,7 +165,7 @@ class JobQueueService {
 
         $attemptCount = (int) $job['attempt_count'] + 1;
         $maxAttempts = max(1, (int) $job['max_attempts']);
-        $shouldRetry = $attemptCount < $maxAttempts;
+        $shouldRetry = !$forceFinal && $attemptCount < $maxAttempts;
 
         $update = $this->db->prepare("
             UPDATE job_queue
@@ -208,6 +208,31 @@ class JobQueueService {
             WHERE id = ?
         ");
         $task->execute([$errorMessage, $taskId]);
+    }
+
+    public function pauseTaskForNonRetryableError(int $taskId, string $errorMessage): void {
+        $task = $this->db->prepare("
+            UPDATE tasks
+            SET status = 'paused',
+                schedule_enabled = 0,
+                next_run_at = NULL,
+                last_error_at = CURRENT_TIMESTAMP,
+                last_error_message = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ");
+        $task->execute([$errorMessage, $taskId]);
+
+        $pendingJobs = $this->db->prepare("
+            UPDATE job_queue
+            SET status = 'cancelled',
+                finished_at = CURRENT_TIMESTAMP,
+                error_message = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE task_id = ?
+              AND status = 'pending'
+        ");
+        $pendingJobs->execute(['任务因不可重试的 AI 供应商配置错误自动暂停', $taskId]);
     }
 
     public function cancelJob(int $jobId, int $taskId, string $reason = '管理员手动停止'): void {

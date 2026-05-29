@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/database_admin.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/api_response.php';
 require_once __DIR__ . '/../includes/task_lifecycle_service.php';
+require_once __DIR__ . '/../includes/ai_provider_errors.php';
 
 // 检查管理员登录
 require_admin_login();
@@ -160,6 +161,14 @@ function describeTaskExecutionError(?string $message): array {
             'label' => __('task_execute.failure.task_paused_label'),
             'detail' => __('task_execute.failure.task_paused_detail'),
             'tone' => 'slate',
+        ];
+    }
+
+    if (geoflow_is_non_retryable_ai_provider_error($message)) {
+        return [
+            'label' => __('task_execute.failure.provider_region_blocked_label'),
+            'detail' => __('task_execute.failure.provider_region_blocked_detail'),
+            'tone' => 'amber',
         ];
     }
 

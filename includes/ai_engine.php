@@ -13,6 +13,7 @@ if (!defined('FEISHU_TREASURE')) {
 }
 
 require_once __DIR__ . '/knowledge-retrieval.php';
+require_once __DIR__ . '/ai_provider_errors.php';
 
 class AIEngine {
     private const MIN_ARTICLE_TEXT_LENGTH = 200;
@@ -379,6 +380,7 @@ class AIEngine {
         if (
             str_starts_with($normalized, 'CURL错误:') ||
             str_starts_with($normalized, 'API调用失败，HTTP状态码:') ||
+            str_starts_with($normalized, 'AI供应商配置错误：') ||
             str_starts_with($normalized, 'API响应格式错误：') ||
             str_starts_with($normalized, 'AI模型不可用或已达每日限制')
         ) {
@@ -578,7 +580,7 @@ class AIEngine {
         }
         
         if ($http_code !== 200) {
-            throw new Exception('API调用失败，HTTP状态码: ' . $http_code . ', 响应: ' . $response);
+            throw new Exception(geoflow_build_ai_http_error_message((int) $http_code, (string) $response));
         }
         
         $result = json_decode($response, true);

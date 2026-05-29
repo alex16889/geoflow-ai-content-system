@@ -13,6 +13,7 @@ require_once $projectRoot . '/includes/database_admin.php';
 require_once $projectRoot . '/includes/functions.php';
 require_once $projectRoot . '/includes/job_queue_service.php';
 require_once $projectRoot . '/includes/ai_engine.php';
+require_once $projectRoot . '/includes/ai_provider_errors.php';
 
 set_time_limit(0);
 ini_set('memory_limit', '512M');
@@ -41,6 +42,19 @@ function isStopRequestedResult(PDO $db, int $taskId, string $message): bool {
     return str_contains($message, '任务已被管理员停止')
         || str_contains($message, '管理员手动停止')
         || str_contains($message, '任务未激活');
+}
+
+function failJobWithProviderGuard(JobQueueService $queueService, int $jobId, int $taskId, string $message, int $durationMs): string {
+    $finalMessage = geoflow_format_non_retryable_ai_task_error($message);
+    $isNonRetryableProviderError = geoflow_is_non_retryable_ai_provider_error($finalMessage);
+
+    $queueService->failJob($jobId, $taskId, $finalMessage, $durationMs, 60, $isNonRetryableProviderError);
+
+    if ($isNonRetryableProviderError) {
+        $queueService->pauseTaskForNonRetryableError($taskId, $finalMessage);
+    }
+
+    return $finalMessage;
 }
 
 function heartbeat(PDO $db, string $workerId, string $status = 'idle', ?int $jobId = null, array $meta = []): void {
@@ -114,14 +128,15 @@ while (true) {
                 continue;
             }
 
-            $queueService->failJob(
+            $finalMessage = failJobWithProviderGuard(
+                $queueService,
                 (int) $job['id'],
                 (int) $job['task_id'],
                 $message,
                 $durationMs
             );
             heartbeat($db, $workerId, 'idle', null, ['last_job_id' => (int) $job['id'], 'pid' => getmypid()]);
-            echo '[' . date('Y-m-d H:i:s') . "] job #{$job['id']} 执行异常: {$e->getMessage()}\n";
+            echo '[' . date('Y-m-d H:i:s') . "] job #{$job['id']} 执行异常: {$finalMessage}\n";
             continue;
         }
         $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
@@ -150,14 +165,15 @@ while (true) {
             continue;
         }
 
-        $queueService->failJob(
+        $finalMessage = failJobWithProviderGuard(
+            $queueService,
             (int) $job['id'],
             (int) $job['task_id'],
             $resultError,
             $durationMs
         );
         heartbeat($db, $workerId, 'idle', null, ['last_job_id' => (int) $job['id'], 'pid' => getmypid()]);
-        echo '[' . date('Y-m-d H:i:s') . "] job #{$job['id']} 执行失败: {$resultError}\n";
+        echo '[' . date('Y-m-d H:i:s') . "] job #{$job['id']} 执行失败: {$finalMessage}\n";
     } catch (Throwable $e) {
         heartbeat($db, $workerId, 'error', null, ['message' => $e->getMessage(), 'pid' => getmypid()]);
         echo '[' . date('Y-m-d H:i:s') . '] worker 异常: ' . $e->getMessage() . "\n";

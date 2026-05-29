@@ -14,6 +14,7 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database_admin.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/job_queue_service.php';
+require_once __DIR__ . '/../includes/ai_provider_errors.php';
 
 // 检查管理员登录
 require_admin_login();
@@ -124,6 +125,10 @@ function formatTaskErrorSnippet(?string $message, int $maxLength = 72): string {
         return __('tasks.failure.paused_detail');
     }
 
+    if (geoflow_is_non_retryable_ai_provider_error($message)) {
+        return __('tasks.failure.provider_region_blocked_detail');
+    }
+
     if (mb_strpos($message, 'AI返回空正文', 0, 'UTF-8') !== false) {
         return __('tasks.failure.empty_content_detail');
     }
@@ -190,6 +195,14 @@ function describeTaskFailure(?string $message): array {
             'label' => __('tasks.failure.paused'),
             'detail' => __('tasks.failure.paused_detail'),
             'tone' => 'slate',
+        ];
+    }
+
+    if (geoflow_is_non_retryable_ai_provider_error($message)) {
+        return [
+            'label' => __('tasks.failure.provider_region_blocked'),
+            'detail' => __('tasks.failure.provider_region_blocked_detail'),
+            'tone' => 'amber',
         ];
     }
 
