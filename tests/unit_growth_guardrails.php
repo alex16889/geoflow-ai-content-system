@@ -50,6 +50,21 @@ $strongQuality = ContentQualityService::evaluate([
 assert_true($strongQuality['passed'], 'Strong article should pass the publish gate');
 assert_true($strongQuality['score'] >= 65, 'Strong article score should meet threshold');
 
+$aiStyleQuality = ContentQualityService::evaluate([
+    'title' => 'youtube app 下载是什么？新手先看这篇完整说明',
+    'content' => str_repeat("## 下载前先判断\n在当今数字化时代，随着移动互联网的发展，本文将全面了解这个问题。值得注意的是，不难看出，首先需要了解，其次需要判断，最后进行总结。参考：https://example.com/source\n", 12),
+    'meta_description' => '这是一篇关于 youtube app 下载风险、入口判断、第三方链接识别和新手避坑的完整说明。',
+    'keywords' => 'youtube app 下载,安全风险,第三方下载,新手说明',
+], [
+    'min_score' => 65,
+    'min_words' => 120,
+    'anti_ai_style_gate_enabled' => '1',
+    'anti_ai_style_max_hits' => 2,
+]);
+
+assert_contains_text('AI腔表达偏多', $aiStyleQuality['issues'], 'AI-style issue should be reported');
+assert_contains_text('结构偏模板化', $aiStyleQuality['issues'], 'Numbered template issue should be reported');
+
 $blockedSpend = SiteSpendGuardService::evaluateBudget(1.00, 0.95, 0.10);
 assert_false($blockedSpend['allowed'], 'Spend guard should block requests over daily budget');
 

@@ -49,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $quality_gate_enabled = !empty($_POST['quality_gate_enabled']) ? '1' : '0';
                 $quality_gate_min_score = (string) max(0, min(100, intval($_POST['quality_gate_min_score'] ?? 65)));
                 $quality_gate_min_words = (string) max(50, intval($_POST['quality_gate_min_words'] ?? 300));
+                $human_style_prompt_enabled = !empty($_POST['human_style_prompt_enabled']) ? '1' : '0';
+                $anti_ai_style_gate_enabled = !empty($_POST['anti_ai_style_gate_enabled']) ? '1' : '0';
+                $anti_ai_style_max_hits = (string) max(1, min(10, intval($_POST['anti_ai_style_max_hits'] ?? 3)));
                 $indexnow_enabled = !empty($_POST['indexnow_enabled']) ? '1' : '0';
                 $indexnow_key = trim((string) ($_POST['indexnow_key'] ?? ''));
                 $bing_url_submission_enabled = !empty($_POST['bing_url_submission_enabled']) ? '1' : '0';
@@ -93,6 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'quality_gate_enabled' => $quality_gate_enabled,
                             'quality_gate_min_score' => $quality_gate_min_score,
                             'quality_gate_min_words' => $quality_gate_min_words,
+                            'human_style_prompt_enabled' => $human_style_prompt_enabled,
+                            'anti_ai_style_gate_enabled' => $anti_ai_style_gate_enabled,
+                            'anti_ai_style_max_hits' => $anti_ai_style_max_hits,
                             'indexnow_enabled' => $indexnow_enabled,
                             'indexnow_key' => $indexnow_key,
                             'bing_url_submission_enabled' => $bing_url_submission_enabled,
@@ -205,6 +211,9 @@ $defaults = [
     'quality_gate_enabled' => '1',
     'quality_gate_min_score' => '65',
     'quality_gate_min_words' => '300',
+    'human_style_prompt_enabled' => '1',
+    'anti_ai_style_gate_enabled' => '1',
+    'anti_ai_style_max_hits' => '3',
     'indexnow_enabled' => '0',
     'indexnow_key' => '',
     'bing_url_submission_enabled' => '0',
@@ -497,6 +506,25 @@ require_once __DIR__ . '/includes/header.php';
                                     <label class="block text-sm font-medium text-gray-700 mb-2">最低正文词数</label>
                                     <input type="number" name="quality_gate_min_words" min="50" value="<?php echo htmlspecialchars($current_settings['quality_gate_min_words']); ?>" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                                     <p class="mt-1 text-xs text-gray-500">英文站建议 300 起步，精品页可提高。</p>
+                                </div>
+                                <label class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
+                                    <input type="checkbox" name="human_style_prompt_enabled" value="1" <?php echo ($current_settings['human_style_prompt_enabled'] ?? '1') === '1' ? 'checked' : ''; ?> class="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                    <span>
+                                        <span class="block text-sm font-medium text-gray-900">生成时追加自然中文规则</span>
+                                        <span class="mt-1 block text-xs text-gray-600">默认要求开头直答、具体场景、少套话，降低 AI 味。</span>
+                                    </span>
+                                </label>
+                                <label class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
+                                    <input type="checkbox" name="anti_ai_style_gate_enabled" value="1" <?php echo ($current_settings['anti_ai_style_gate_enabled'] ?? '1') === '1' ? 'checked' : ''; ?> class="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                    <span>
+                                        <span class="block text-sm font-medium text-gray-900">发布前检查 AI 腔</span>
+                                        <span class="mt-1 block text-xs text-gray-600">常见模板句过多会扣质量分，必要时阻止发布。</span>
+                                    </span>
+                                </label>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">AI 腔命中上限</label>
+                                    <input type="number" name="anti_ai_style_max_hits" min="1" max="10" value="<?php echo htmlspecialchars($current_settings['anti_ai_style_max_hits'] ?? '3'); ?>" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="mt-1 text-xs text-gray-500">建议 3；越低越严格。</p>
                                 </div>
                             </div>
 

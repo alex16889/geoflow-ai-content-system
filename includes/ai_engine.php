@@ -479,6 +479,7 @@ class AIEngine {
         
         // 处理提示词
         $processed_prompt = $this->processPromptVariables($task['prompt_content'], $variables);
+        $processed_prompt = $this->appendHumanStyleInstructions($processed_prompt, $title_info);
         
         // 调用AI生成内容
         $this->touchHeartbeat('calling_ai_content', ['task_id' => (int) $task['id']]);
@@ -540,6 +541,35 @@ class AIEngine {
         return $processed;
     }
 
+    private function appendHumanStyleInstructions(string $prompt, array $titleInfo = []): string {
+        if (function_exists('get_setting') && (string) get_setting('human_style_prompt_enabled', '1') === '0') {
+            return $prompt;
+        }
+
+        if (str_contains($prompt, '【GEOflow自然中文写作规则】')) {
+            return $prompt;
+        }
+
+        $title = trim((string) ($titleInfo['title'] ?? ''));
+        $keyword = trim((string) ($titleInfo['keyword'] ?? ''));
+
+        $rules = [
+            '保持原提示词要求的语言，不要因为本规则切换语种；中文站写自然中文，英文站写自然英文。',
+            '首段直接回答用户搜索意图，不要用“在当今时代/随着发展/本文将”等宏大套话开头。',
+            '用有经验编辑的写法：具体、直接、带判断；允许短句，不要像说明书一样平均用力。',
+            '每个小节至少给出一个真实使用场景、风险提醒、判断标准或操作步骤，避免空泛形容词堆叠。',
+            '不要使用“综上所述、总而言之、值得注意的是、不难看出、全面了解、深入探讨”等高频 AI 腔表达。',
+            '不要夸大安全、收益、下载成功率或官方背书；不确定的信息要写成保守提示。',
+            '输出只保留可发布的 Markdown 正文，不要解释你是 AI，也不要写生成过程。',
+        ];
+
+        return trim($prompt) . "\n\n" .
+            "【GEOflow自然中文写作规则】\n" .
+            ($title !== '' ? "当前标题：{$title}\n" : '') .
+            ($keyword !== '' ? "核心关键词：{$keyword}\n" : '') .
+            '- ' . implode("\n- ", $rules);
+    }
+
     private function repairShortGeneratedContentIfNeeded(array $task, string $originalPrompt, string $content, array $titleInfo): string {
         $textLength = $this->getMeaningfulContentLength($content);
         if ($textLength >= self::MIN_ARTICLE_TEXT_LENGTH) {
@@ -553,7 +583,7 @@ class AIEngine {
             "上一次输出正文过短，当前只有 {$textLength} 字，无法入库。请重新生成一篇完整中文正文，不能只写提纲、免责声明或短摘要。\n" .
             "标题主题：" . ($title !== '' ? $title : '当前标题') . "\n" .
             "核心关键词：" . ($keyword !== '' ? $keyword : '当前关键词') . "\n" .
-            "硬性要求：正文不少于 800 个中文字符；至少包含 4 个小标题；每个小标题下面写 2-3 段具体内容；输出可直接发布的 Markdown 正文。";
+            "硬性要求：正文不少于 800 个中文字符；至少包含 4 个小标题；每个小标题下面写 2-3 段具体内容；延续上方自然中文写作规则；输出可直接发布的 Markdown 正文。";
 
         $this->touchHeartbeat('repairing_short_content', [
             'task_id' => (int) ($task['id'] ?? 0),

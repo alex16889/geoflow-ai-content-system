@@ -41,6 +41,10 @@ function build_articles_redirect_url($status, $message) {
     return 'articles.php' . ($query_string ? '?' . $query_string : '');
 }
 
+function article_can_publish_after_review(string $reviewStatus): bool {
+    return in_array($reviewStatus, ['approved', 'auto_approved'], true);
+}
+
 // 处理POST请求
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -163,6 +167,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 } else {
                     $error = __('articles.message.batch_review_required');
+                }
+                break;
+
+            case 'publish_article':
+                $article_id = (int) ($_POST['article_id'] ?? 0);
+
+                if ($article_id <= 0) {
+                    $error = __('articles.message.publish_failed');
+                    break;
+                }
+
+                $articleSql = "
+                    SELECT a.*
+                    FROM articles a
+                    WHERE a.id = ? AND a.deleted_at IS NULL
+                ";
+                if ($articlesAliasSiteCondition !== '') {
+                    $articleSql .= ' AND ' . $articlesAliasSiteCondition;
+                }
+
+                $articleStmt = $db->prepare($articleSql);
+                $articleStmt->execute([$article_id]);
+                $article = $articleStmt->fetch();
+
+                if (!$article) {
+                    $error = __('articles.message.publish_failed');
+                    break;
+                }
+
+                if (!article_can_publish_after_review((string) ($article['review_status'] ?? 'pending'))) {
+                    $error = __('articles.message.publish_review_required');
+                    break;
+                }
+
+                $workflowState = normalize_article_workflow_state(
+                    'published',
+                    (string) ($article['review_status'] ?? 'approved'),
+                    $article['published_at'] ?? null
+                );
+
+                $quality = ContentQualityService::guardPublish($db, $article_id, $article);
+                if (empty($quality['allowed'])) {
+                    $error = __('articles.message.publish_blocked', [
+                        'issues' => implode('；', $quality['issues'] ?? [])
+                    ]);
+                    break;
+                }
+
+                $updateSql = "
+                    UPDATE articles
+                    SET status = ?, review_status = ?, published_at = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ";
+                if ($articlesSiteCondition !== '') {
+                    $updateSql .= ' AND ' . $articlesSiteCondition;
+                }
+
+                $stmt = $db->prepare($updateSql);
+                if ($stmt->execute([$workflowState['status'], $workflowState['review_status'], $workflowState['published_at'], $article_id])) {
+                    SearchSubmissionService::queueArticle($db, $article_id);
+                    $message = __('articles.message.publish_success');
+                } else {
+                    $error = __('articles.message.publish_failed');
                 }
                 break;
 
@@ -386,6 +453,8 @@ const ARTICLES_I18N = <?php echo json_encode([
     'reviewRejected' => __('articles.review.rejected'),
     'confirmQuickReview' => __('articles.confirm.quick_review', ['action' => '__ACTION__']),
     'reviewFailedRefresh' => __('articles.message.review_failed_refresh'),
+    'confirmPublish' => __('articles.confirm.publish'),
+    'publishFailedRefresh' => __('articles.message.publish_failed_refresh'),
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
 // 显示确认对话框
@@ -514,6 +583,47 @@ function deleteArticle(articleId, event) {
         form.remove();
     }
     });
+}
+
+function publishArticle(articleId, event) {
+    if (!confirm(ARTICLES_I18N.confirmPublish)) {
+        return;
+    }
+
+    const publishBtn = event ? event.target.closest('button') : null;
+    const originalHTML = publishBtn ? publishBtn.innerHTML : '';
+
+    if (publishBtn) {
+        publishBtn.disabled = true;
+        publishBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>';
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    const form = createArticleActionForm({
+        'csrf_token': '<?php echo generate_csrf_token(); ?>',
+        'return_query': window.location.search.replace(/^\?/, ''),
+        'action': 'publish_article',
+        'article_id': articleId
+    });
+
+    try {
+        form.submit();
+    } catch (error) {
+        console.error('发布失败:', error);
+        showNotification('error', ARTICLES_I18N.publishFailedRefresh);
+
+        if (publishBtn) {
+            publishBtn.disabled = false;
+            publishBtn.innerHTML = originalHTML;
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        form.remove();
+    }
 }
 </script>
 
@@ -854,6 +964,11 @@ function deleteArticle(articleId, event) {
                                             <a href="article-edit.php?id=<?php echo $article['id']; ?>" class="text-green-600 hover:text-green-800" title="<?php echo htmlspecialchars(__('button.edit')); ?>">
                                                 <i data-lucide="edit" class="w-4 h-4"></i>
                                             </a>
+                                            <?php if (($article['status'] ?? 'draft') !== 'published' && article_can_publish_after_review((string) ($article['review_status'] ?? 'pending'))): ?>
+                                                <button type="button" data-action-call="publishArticle" data-action-args='<?php echo htmlspecialchars(json_encode([(int) $article['id'], '__event__'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES); ?>' class="text-blue-600 hover:text-blue-800" title="<?php echo htmlspecialchars(__('articles.action.publish')); ?>">
+                                                    <i data-lucide="send" class="w-4 h-4"></i>
+                                                </button>
+                                            <?php endif; ?>
                                             <?php if ($article['review_status'] === 'pending'): ?>
                                                 <button type="button" data-action-call="quickReview" data-article-id="<?php echo (int) $article['id']; ?>" data-action-args='<?php echo htmlspecialchars(json_encode([(int) $article['id'], 'approved'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES); ?>' class="text-green-600 hover:text-green-800" title="<?php echo htmlspecialchars(__('articles.action.approve')); ?>">
                                                     <i data-lucide="check" class="w-4 h-4"></i>
