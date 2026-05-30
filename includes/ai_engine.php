@@ -483,6 +483,7 @@ class AIEngine {
         // 调用AI生成内容
         $this->touchHeartbeat('calling_ai_content', ['task_id' => (int) $task['id']]);
         $content = $this->callAI($task, $processed_prompt);
+        $content = $this->repairShortGeneratedContentIfNeeded($task, $processed_prompt, $content, $title_info);
         $this->assertGeneratedContentIsValid($content, (string) ($title_info['title'] ?? ''));
         
         // 处理图片插入
@@ -537,6 +538,29 @@ class AIEngine {
         }, $processed);
         
         return $processed;
+    }
+
+    private function repairShortGeneratedContentIfNeeded(array $task, string $originalPrompt, string $content, array $titleInfo): string {
+        $textLength = $this->getMeaningfulContentLength($content);
+        if ($textLength >= self::MIN_ARTICLE_TEXT_LENGTH) {
+            return $content;
+        }
+
+        $title = trim((string) ($titleInfo['title'] ?? ''));
+        $keyword = trim((string) ($titleInfo['keyword'] ?? ''));
+        $repairPrompt = trim($originalPrompt) . "\n\n" .
+            "【重新生成要求】\n" .
+            "上一次输出正文过短，当前只有 {$textLength} 字，无法入库。请重新生成一篇完整中文正文，不能只写提纲、免责声明或短摘要。\n" .
+            "标题主题：" . ($title !== '' ? $title : '当前标题') . "\n" .
+            "核心关键词：" . ($keyword !== '' ? $keyword : '当前关键词') . "\n" .
+            "硬性要求：正文不少于 800 个中文字符；至少包含 4 个小标题；每个小标题下面写 2-3 段具体内容；输出可直接发布的 Markdown 正文。";
+
+        $this->touchHeartbeat('repairing_short_content', [
+            'task_id' => (int) ($task['id'] ?? 0),
+            'content_length' => $textLength,
+        ]);
+
+        return $this->callAI($task, $repairPrompt);
     }
     
     /**
@@ -992,10 +1016,38 @@ class AIEngine {
         $author = $stmt->fetch();
         
         if (!$author) {
+            $fallbackAuthorId = $this->ensureDefaultAuthorForSite($siteId);
+            if ($fallbackAuthorId > 0) {
+                return $fallbackAuthorId;
+            }
+
             throw new Exception('当前站点没有可用作者');
         }
 
         return (int) $author['id'];
+    }
+
+    private function ensureDefaultAuthorForSite(int $siteId): int {
+        if ($siteId <= 0 || !geoflow_table_has_site_column($this->db, 'authors')) {
+            return 0;
+        }
+
+        $site = geoflow_find_site_by_id($this->db, $siteId);
+        $siteName = trim((string) ($site['name'] ?? ''));
+        $authorName = $siteName !== '' ? $siteName . '编辑部' : '站点编辑部';
+
+        $stmt = $this->db->prepare("
+            INSERT INTO authors (site_id, name, bio, email, avatar, website, social_links, created_at, updated_at)
+            VALUES (?, ?, ?, '', '', '', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING id
+        ");
+        $stmt->execute([
+            $siteId,
+            $authorName,
+            '系统自动创建的默认作者，用于新站点任务生成兜底。'
+        ]);
+
+        return (int) $stmt->fetchColumn();
     }
     
     /**
