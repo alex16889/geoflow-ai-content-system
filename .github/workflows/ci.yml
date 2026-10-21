@@ -62,5 +62,8 @@ jobs:
       - name: Build Tailwind assets
         run: npm run build:tailwind
 
+      # Tailwind 3 is build-only. Its dependency tree still includes braces,
+      # and npm's non-breaking fix does not clear that advisory. The PHP
+      # application has no runtime npm packages, so audit those only.
       - name: Dependency audit
-        run: npm audit --audit-level=moderate
+        run: npm audit --omit=dev --audit-level=moderate
