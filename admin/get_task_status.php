@@ -105,9 +105,10 @@ try {
     ]);
 
 } catch (Exception $e) {
+    error_log('get_task_status failed');
     echo json_encode([
         'success' => false,
-        'message' => '获取状态失败：' . $e->getMessage()
+        'message' => '获取状态失败，请稍后重试'
     ]);
 }
 ?>

@@ -9,6 +9,7 @@ session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database_admin.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/error_response.php';
 require_once __DIR__ . '/includes/material-library-helpers.php';
 
 require_admin_login();
@@ -474,8 +475,9 @@ try {
         ], 500);
     }
 } catch (Throwable $e) {
+    error_log('title_generate_async failed');
     title_generate_json_response([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => geoflow_public_error_message($e, '请求处理失败，请稍后重试')
     ], 400);
 }

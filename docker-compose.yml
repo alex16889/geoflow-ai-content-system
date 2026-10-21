@@ -75,6 +75,7 @@ services:
       DB_USER: "${DB_USER:-geo_user}"
       DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
       CRON_INTERVAL: "${CRON_INTERVAL:-60}"
+      PUBLISHER_SITES_ROOT: "${PUBLISHER_SITES_ROOT:-/var/www/html/data/publisher-sites}"
       APP_SECRET_KEY: "${APP_SECRET_KEY:-dev-secret-change-me}"
       REQUIRE_STRONG_APP_SECRET: "${REQUIRE_STRONG_APP_SECRET:-false}"
       ADMIN_BASE_PATH: "${ADMIN_BASE_PATH:-geo_admin}"

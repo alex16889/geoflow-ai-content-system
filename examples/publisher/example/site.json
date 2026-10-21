@@ -1,0 +1,6 @@
+{
+  "id": "example",
+  "name": "Example Site",
+  "timezone": "UTC",
+  "base_url": "https://example.com"
+}

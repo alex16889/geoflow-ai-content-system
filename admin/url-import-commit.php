@@ -5,6 +5,7 @@ session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database_admin.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/error_response.php';
 require_once 'includes/url-import-helpers.php';
 
 if (!is_admin_logged_in() || !get_current_admin(true)) {
@@ -42,8 +43,9 @@ try {
         'import_result' => $importResult,
     ]);
 } catch (Throwable $e) {
+    error_log('url import commit failed');
     json_response([
         'success' => false,
-        'message' => $e->getMessage(),
+        'message' => geoflow_public_error_message($e, '采集结果入库失败，请稍后重试'),
     ], 500);
 }

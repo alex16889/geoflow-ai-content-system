@@ -35,6 +35,8 @@ Examples of issues that should be reported through the security channel:
 - Sensitive credential disclosure
 - Unsafe file upload or path traversal
 - API authorization bypass
+- Stack traces, absolute paths, or database errors returned to browsers
+- Missing CSRF protection on admin or batch actions
 
 ## Response Expectations
 

@@ -7,6 +7,8 @@ if (!defined('FEISHU_TREASURE')) {
     die('Access denied');
 }
 
+require_once __DIR__ . '/error_response.php';
+
 class ApiException extends RuntimeException {
     private int $httpStatus;
     private string $errorCode;
@@ -47,11 +49,11 @@ function api_build_success_payload(array $data, string $requestId): array {
 function api_build_error_payload(string $code, string $message, string $requestId, array $details = []): array {
     $error = [
         'code' => $code,
-        'message' => $message
+        'message' => geoflow_redact_public_text($message, '请求处理失败，请稍后重试')
     ];
 
     if (!empty($details)) {
-        $error['details'] = $details;
+        $error['details'] = geoflow_redact_public_value($details);
     }
 
     return [

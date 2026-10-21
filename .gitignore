@@ -31,6 +31,7 @@ data/backups/
 # Local runtime markers
 logs/.docker-ready
 data/login_attempts.json
+data/publisher-sites/
 
 # Runtime uploads
 uploads/images/

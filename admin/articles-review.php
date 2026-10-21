@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/database_admin.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/content_quality_service.php';
 require_once __DIR__ . '/../includes/search_submission_service.php';
+require_once __DIR__ . '/../includes/error_response.php';
 
 // 检查管理员登录
 require_admin_login();
@@ -117,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->commit();
                     } catch (Exception $e) {
                         $db->rollBack();
-                        $error = '审核失败: ' . $e->getMessage();
+                        $error = '审核失败: ' . geoflow_public_error_message($e, '请稍后重试');
                     }
                 }
                 break;
@@ -203,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message = '批量审核结果已更新，共处理 ' . count($article_ids) . ' 篇文章';
                     } catch (Exception $e) {
                         $db->rollBack();
-                        $error = '批量审核失败: ' . $e->getMessage();
+                        $error = '批量审核失败: ' . geoflow_public_error_message($e, '请稍后重试');
                     }
                 }
                 break;

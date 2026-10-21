@@ -42,9 +42,11 @@ class Database {
         try {
             $this->pdo = db_create_runtime_pdo();
         } catch (PDOException $e) {
-            die('数据库连接失败: ' . $e->getMessage());
+            error_log('Database connection failed.');
+            die('数据库连接失败。请检查数据库配置。');
         } catch (RuntimeException $e) {
-            die('数据库配置错误: ' . $e->getMessage());
+            error_log('Database configuration failed.');
+            die('数据库配置错误。请检查环境变量。');
         }
     }
     

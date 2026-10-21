@@ -14,6 +14,7 @@ require_once __DIR__ . '/../includes/image_seo_service.php';
 require_once __DIR__ . '/../includes/knowledge-retrieval.php';
 require_once __DIR__ . '/includes/material-library-helpers.php';
 require_once __DIR__ . '/includes/seo-material-wizard-helpers.php';
+require_once __DIR__ . '/../includes/error_response.php';
 
 require_admin_login();
 
@@ -52,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = '已生成 SEO 素材包：标题 ' . (int) $result['title_count'] . ' 个，图片素材 ' . (int) $result['image_count'] . ' 张，知识库分块 ' . (int) $result['knowledge_chunks'] . ' 个。';
         $context = seo_material_wizard_collect_context($db, $currentSiteId);
     } catch (Throwable $e) {
-        $error = $e->getMessage();
+        $error = geoflow_public_error_message($e, '素材生成失败，请稍后重试');
     }
 }
 
