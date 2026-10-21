@@ -11,6 +11,7 @@ require_once __DIR__ . '/../includes/database_admin.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/dataforseo_service.php';
 require_once __DIR__ . '/../includes/site_spend_guard_service.php';
+require_once __DIR__ . '/../includes/error_response.php';
 require_once __DIR__ . '/includes/material-library-helpers.php';
 
 require_admin_login();
@@ -310,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
-            $error = $e->getMessage();
+            $error = geoflow_public_error_message($e, '关键词导入失败，请稍后重试');
         }
     }
 }

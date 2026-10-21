@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/visibility_tracking_service.php';
 require_once __DIR__ . '/../includes/content_research_service.php';
 require_once __DIR__ . '/../includes/internal_link_service.php';
 require_once __DIR__ . '/../includes/redirect_service.php';
+require_once __DIR__ . '/../includes/error_response.php';
 
 require_admin_login();
 
@@ -58,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
             }
         } catch (Throwable $e) {
-            $error = '保存失败：' . $e->getMessage();
+            $error = '保存失败：' . geoflow_public_error_message($e, '请稍后重试');
         }
     }
 }

@@ -8,6 +8,7 @@ if (!defined('FEISHU_TREASURE')) {
 }
 
 require_once dirname(__DIR__, 2) . '/includes/knowledge-retrieval.php';
+require_once dirname(__DIR__, 2) . '/includes/error_response.php';
 
 function url_import_step_definitions() {
     return [
@@ -895,14 +896,16 @@ function run_url_import_pipeline(PDO $db, int $job_id): ?array {
         ]);
         add_url_import_log($db, $job_id, '真实页面解析已完成，可查看正文摘要、关键词、标题与图片预览', 'info');
     } catch (Throwable $e) {
+        $publicImportError = geoflow_public_error_message($e, '采集失败，请稍后重试');
+        error_log('url import pipeline failed');
         update_url_import_job($db, $job_id, [
             'status' => 'failed',
             'current_step' => 'failed',
             'progress_percent' => url_import_step_definitions()['failed']['progress'] ?? 100,
-            'error_message' => $e->getMessage(),
+            'error_message' => $publicImportError,
             'finished_at' => date('Y-m-d H:i:s'),
         ]);
-        add_url_import_log($db, $job_id, '采集失败：' . $e->getMessage(), 'error');
+        add_url_import_log($db, $job_id, '采集失败：' . $publicImportError, 'error');
     }
 
     return get_url_import_job($db, $job_id);

@@ -42,9 +42,11 @@ class DatabaseAdmin {
         try {
             $this->pdo = db_create_runtime_pdo();
         } catch (PDOException $e) {
-            die('数据库连接失败: ' . $e->getMessage());
+            error_log('Database connection failed.');
+            die('数据库连接失败。请检查数据库配置。');
         } catch (RuntimeException $e) {
-            die('数据库配置错误: ' . $e->getMessage());
+            error_log('Database configuration failed.');
+            die('数据库配置错误。请检查环境变量。');
         }
     }
     
@@ -498,7 +500,8 @@ class DatabaseAdmin {
             $this->pdo->exec($sql);
             $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_base ON knowledge_chunks(knowledge_base_id, chunk_index)");
         } catch (PDOException $e) {
-            die('创建数据表失败: ' . $e->getMessage());
+            error_log('Database schema initialization failed.');
+            die('创建数据表失败。请检查数据库权限。');
         }
     }
 
@@ -909,6 +912,7 @@ try {
 
     $db = DatabaseAdmin::getInstance()->getPDO();
 } catch (Exception $e) {
-    die('数据库初始化失败: ' . $e->getMessage());
+    error_log('Database initialization failed.');
+    die('数据库初始化失败。请检查数据库配置。');
 }
 ?>

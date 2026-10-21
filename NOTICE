@@ -12,7 +12,8 @@ substantial downstream modifications by Alex in 2026.
 Major downstream modifications include multi-site management, site isolation,
 site cloning, DataForSEO keyword import, search discovery endpoints, multi-provider
 search submission queues, content quality gates, API spend guardrails, admin UI
-polish, local static assets, and deployment/security hardening.
+polish, local static assets, deployment/security hardening, and the per-site
+static publishing pipeline.
 
 The original upstream author and project are not responsible for downstream
 changes in this distribution unless explicitly stated by the upstream project.

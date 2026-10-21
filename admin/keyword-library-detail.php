@@ -378,6 +378,7 @@ $usage_count = $usage_stats->fetch()['usage_count'];
                     <form method="POST" id="batch-form">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                         <input type="hidden" name="action" value="delete_keywords">
+                        <div id="selected-keyword-ids"></div>
                         <div class="flex items-center space-x-4">
                             <span class="text-sm text-gray-600"><?php echo __('keyword_detail.selected_count', ['count' => '<span id="selected-count">0</span>']); ?></span>
                             
@@ -625,14 +626,24 @@ $usage_count = $usage_stats->fetch()['usage_count'];
 
         // 批量表单提交
         document.getElementById('batch-form').addEventListener('submit', function(e) {
-            const selected = document.querySelectorAll('.keyword-checkbox:checked').length;
-            if (selected === 0) {
+            const selected = document.querySelectorAll('.keyword-checkbox:checked');
+            if (selected.length === 0) {
                 e.preventDefault();
                 alert('<?php echo __('keyword_detail.error.select_required'); ?>');
                 return;
             }
+
+            const selectedIds = document.getElementById('selected-keyword-ids');
+            selectedIds.innerHTML = '';
+            selected.forEach(function(cb) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'keyword_ids[]';
+                input.value = cb.value;
+                selectedIds.appendChild(input);
+            });
             
-            if (!confirm(`<?php echo __('keyword_detail.confirm_delete_selected', ['count' => '{count}']); ?>`.replace('{count}', selected))) {
+            if (!confirm(`<?php echo __('keyword_detail.confirm_delete_selected', ['count' => '{count}']); ?>`.replace('{count}', selected.length))) {
                 e.preventDefault();
                 return;
             }

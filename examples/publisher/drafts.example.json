@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "id": "welcome",
+      "slug": "welcome",
+      "title": "Welcome",
+      "body": "Placeholder draft for the Example Site at https://example.com."
+    }
+  ]
+}

@@ -42,6 +42,7 @@ For a quick SEO/GEO portfolio overview, start with [CASE_STUDY.md](CASE_STUDY.md
 | 🗂 Unified Material Management | Centralized management of title libraries, keyword libraries, image libraries, knowledge bases, and prompt templates |
 | 📈 Keyword Automation | Optional DataForSEO keyword import with site-level budget and spend tracking |
 | 📋 Review & Publishing Workflow | Three-stage workflow: Draft → Review → Publish, with optional auto-publishing |
+| 📰 Static publisher | File pipeline `draft → reviewed → scheduled → published`, per-site ledger, cron-friendly `run --scheduled` |
 | 🔍 Search-Oriented Display Optimization | Article SEO metadata, Open Graph, structured data, sitemaps, `llms.txt`, and search-submission queues |
 | 🧭 SEO/GEO Workbench | Local readiness audit, search snapshots, AI visibility records, competitor briefs, internal-link suggestions, redirects, and 404 logs |
 | 🧪 Quality Guardrails | Pre-publish checks for quality score, minimum length, and reviewable issues |
@@ -88,7 +89,8 @@ Front-end article & SEO page output
 |-------|-------------|
 | Web / Admin | Front-end article site and admin dashboard — handles content browsing, material management, task management, and configuration |
 | API / CLI | `/api/v1` provides machine-readable interfaces; `bin/geoflow` provides local CLI capabilities for batch tasks and automation |
-| Scheduler / Worker | Scheduler scans tasks and enqueues them; Worker handles actual model calls to generate content |
+| Scheduler / Worker | Scheduler scans tasks and enqueues them; Worker handles actual model calls to generate content. `bin/publisher run --scheduled` publishes due, reviewed files for each site |
+| Static publisher | `includes/publisher/` renders reviewed items with the site template, records `published.json`, and rolls back failed writes |
 | Domain Services | Task, article, queue, AI, and retrieval services in `includes/` implement core business rules |
 | Persistence | PostgreSQL serves as the runtime database, storing tasks, articles, materials, review states, and system configuration |
 
@@ -100,6 +102,74 @@ Core Pipeline:
 4. Worker calls AI to generate content
 5. Articles enter the Draft → Review → Publish pipeline
 6. Front-end renders articles and SEO pages
+7. Reviewed articles can be handed to the static publisher, which refuses anything that has not been reviewed
+
+---
+
+## Static publishing pipeline
+
+The static publisher is a filesystem workflow next to the PostgreSQL article workflow. It does not call an AI provider and it does not share ledgers between sites.
+
+```text
+draft -> reviewed -> scheduled -> published
+```
+
+Publishing refuses drafts and any item that has not been reviewed. Each site directory contains:
+
+```text
+sites/<site-id>/
+  site.json
+  templates/article.html
+  items/<id>.json
+  output/<slug>.html
+  published.json
+```
+
+`published.json` is the site ledger. A second publish of the same item or slug on the same site-local day is skipped. After a write, the publisher reads the file back and compares its SHA-256 hash. If that check fails, it restores the previous bytes and checks the restored hash before giving up.
+
+```bash
+export PUBLISHER_SITES_ROOT="$PWD/data/publisher-sites"
+php bin/publisher init --site example --name "Example" --base-url https://example.com
+php bin/publisher import --site example --file examples/publisher/drafts.example.json --dry-run
+php bin/publisher import --site example --file examples/publisher/drafts.example.json
+php bin/publisher review --site example --id welcome
+php bin/publisher schedule --site example --id welcome --at 2026-10-21T18:00:00Z
+php bin/publisher run --scheduled --dry-run
+php bin/publisher run --scheduled
+```
+
+`--dry-run` and `--preview` plan the run and write nothing. Import is idempotent: repeating a successful batch does not duplicate drafts. If a batch fails halfway, files created by that attempt are removed and overwritten drafts are restored.
+
+An example site lives in `examples/publisher/example`. Copy it into `PUBLISHER_SITES_ROOT` before publishing so generated files stay out of the git tree.
+
+---
+
+## Self-hosting
+
+1. Copy `.env.example` to `.env`.
+2. Set `APP_SECRET_KEY` and `INITIAL_ADMIN_PASSWORD` from a secret store. Do not commit `.env`.
+3. Start the stack with Docker Compose. The `scheduler` profile runs task dispatch and `bin/publisher run --scheduled` on `CRON_INTERVAL`.
+4. Put the public site on a hostname you control. Documentation examples use `https://example.com` only.
+5. For a host without Docker, run PHP 8.3 with `pdo_pgsql`, point `DB_*` at PostgreSQL, and install a systemd timer:
+
+```ini
+# /etc/systemd/system/geoflow-publisher.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/geoflow
+Environment=PUBLISHER_SITES_ROOT=/var/lib/geoflow/sites
+ExecStart=/usr/bin/php /opt/geoflow/bin/publisher run --scheduled
+
+# /etc/systemd/system/geoflow-publisher.timer
+[Timer]
+OnCalendar=minutely
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Database passwords, API tokens, and DataForSEO credentials belong in environment variables, never in the repository.
 
 ---
 
@@ -347,6 +417,7 @@ GEOFlow/
 ├── bin/                          CLI and background scripts
 │   ├── geoflow                   Local CLI — for skill and automation script invocation
 │   ├── cron.php                  Scheduler — scans tasks and writes to queue
+│   ├── publisher                 Static publisher CLI (`run --scheduled`, `--dry-run`)
 │   ├── worker.php                Persistent Worker — calls AI to generate content
 │   ├── db_maintenance.php        Database maintenance tool
 │   ├── migrate_sqlite_to_pg.php  Historical migration script

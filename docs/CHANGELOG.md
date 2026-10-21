@@ -2,6 +2,17 @@
 
 该文档记录公开仓库可见功能的持续更新。后续每次推送到 GitHub 时，同步更新本文件和英文版 `CHANGELOG_en.md`。
 
+## 2026-10-21
+
+### 静态发布流水线
+
+- 新增与数据库文章流并列的文件发布器：`draft → reviewed → scheduled → published`。未审核内容不能发布。
+- 新增 cron / systemd 可用的 `php bin/publisher run --scheduled`，以及不写文件的 `--dry-run` / `--preview`。
+- 每个站点使用自己的 `site.json`、模板和 `published.json` 账本。同一天重复发布会被跳过。
+- 发布后读回输出并校验 SHA-256。校验失败时按哈希恢复原文件。
+- 草稿批量导入支持预览、中途失败清理和幂等重试。
+- 错误响应不再返回堆栈、绝对路径或数据库驱动细节。关键词批量删除会连同 CSRF token 提交选中项。
+
 ## 2026-05-27
 
 ### SEO/GEO ops suite

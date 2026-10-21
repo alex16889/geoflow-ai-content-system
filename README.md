@@ -33,6 +33,7 @@ Released under the Apache License 2.0.
 | 🗂 素材统一管理 | 标题库、关键词库、图片库、知识库、提示词集中管理 |
 | 📈 自动关键词导入 | 可接 DataForSEO 拉取关键词建议，并记录站点级预算和花费 |
 | 📋 审核与发布工作流 | 草稿、审核、发布三段式流程，可切换自动发布 |
+| 📰 静态发布器 | 文件流水线 `draft → reviewed → scheduled → published`，按站点账本，可用 cron 调用 `run --scheduled` |
 | 🔍 面向搜索展示优化 | 文章 SEO 元信息、Open Graph、结构化数据、站点地图、`llms.txt` 与搜索推送队列 |
 | 🧭 SEO/GEO 工作台 | 本地 readiness 审计、搜索表现快照、AI 可见性记录、竞品简报、内链建议、重定向和 404 |
 | 🧪 内容质量护栏 | 发布前按质量分、字数和问题清单拦截低质量内容 |
@@ -79,7 +80,8 @@ Worker 执行 AI 生成
 |------|------|
 | Web / Admin | 前台文章站点与后台管理页面，负责内容浏览、素材管理、任务管理和配置入口 |
 | API / CLI | `/api/v1` 提供机器接口，`bin/geoflow` 提供本地 CLI 能力，适合批量任务和自动化接入 |
-| Scheduler / Worker | 调度器负责扫描任务和入队，Worker 负责实际调用模型生成内容 |
+| Scheduler / Worker | 调度器负责扫描任务和入队，Worker 负责实际调用模型生成内容。`bin/publisher run --scheduled` 会发布每个站点已到点且已审核的文件 |
+| 静态发布器 | `includes/publisher/` 用站点模板渲染已审核内容，写入 `published.json`，失败时回滚文件 |
 | Domain Services | `includes/` 中的任务、文章、队列、AI、检索等服务承载核心业务规则 |
 | Persistence | PostgreSQL 作为运行时数据库，保存任务、文章、素材、审核状态和系统配置 |
 
@@ -91,6 +93,74 @@ Worker 执行 AI 生成
 4. Worker 调用 AI 生成正文
 5. 文章进入草稿、审核、发布链路
 6. 前台输出文章与 SEO 页面
+7. 已审核文章可以交给静态发布器；未审核内容会被拒绝发布
+
+---
+
+## 静态发布流水线
+
+静态发布器是 PostgreSQL 文章流旁边的文件系统工作流。它不调用模型，站点之间也不共享账本。
+
+```text
+draft -> reviewed -> scheduled -> published
+```
+
+发布会拒绝草稿和任何未审核条目。每个站点目录各自保存配置、模板和账本：
+
+```text
+sites/<site-id>/
+  site.json
+  templates/article.html
+  items/<id>.json
+  output/<slug>.html
+  published.json
+```
+
+`published.json` 记录已经发布的内容。同一个条目或 slug 在站点本地时区的同一天不会再次写入。写入后会读回文件并比对 SHA-256；校验失败时恢复原文件，并再次校验恢复后的哈希。
+
+```bash
+export PUBLISHER_SITES_ROOT="$PWD/data/publisher-sites"
+php bin/publisher init --site example --name "Example" --base-url https://example.com
+php bin/publisher import --site example --file examples/publisher/drafts.example.json --dry-run
+php bin/publisher import --site example --file examples/publisher/drafts.example.json
+php bin/publisher review --site example --id welcome
+php bin/publisher schedule --site example --id welcome --at 2026-10-21T18:00:00Z
+php bin/publisher run --scheduled --dry-run
+php bin/publisher run --scheduled
+```
+
+`--dry-run` 和 `--preview` 只预览，不写文件。导入可以重复执行：成功过的批次不会复制草稿。批次中途失败时，本次新建的文件会被删除，被覆盖的草稿会恢复。
+
+示例站点在 `examples/publisher/example`。发布前把它复制到 `PUBLISHER_SITES_ROOT`，避免把生成文件提交进仓库。
+
+---
+
+## 自建部署
+
+1. 复制 `.env.example` 为 `.env`。
+2. 用密钥管理系统设置 `APP_SECRET_KEY` 和 `INITIAL_ADMIN_PASSWORD`，不要提交 `.env`。
+3. 用 Docker Compose 启动。`scheduler` profile 会按 `CRON_INTERVAL` 跑任务调度，并执行 `bin/publisher run --scheduled`。
+4. 把站点放到你自己的域名上。文档示例只使用 `https://example.com`。
+5. 不用 Docker 时，准备带 `pdo_pgsql` 的 PHP 8.3，用 `DB_*` 连接 PostgreSQL，并安装 systemd timer：
+
+```ini
+# /etc/systemd/system/geoflow-publisher.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/geoflow
+Environment=PUBLISHER_SITES_ROOT=/var/lib/geoflow/sites
+ExecStart=/usr/bin/php /opt/geoflow/bin/publisher run --scheduled
+
+# /etc/systemd/system/geoflow-publisher.timer
+[Timer]
+OnCalendar=minutely
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+数据库密码、API token 和 DataForSEO 凭据只放在环境变量里，不要写进仓库。
 
 ---
 
@@ -352,6 +422,7 @@ GEOFlow/
 ├── bin/                          CLI 与后台运行脚本
 │   ├── geoflow                   本地 CLI，供 skill 和自动化脚本调用
 │   ├── cron.php                  调度器，负责扫描任务并写入队列
+│   ├── publisher                 静态发布 CLI（`run --scheduled`、`--dry-run`）
 │   ├── worker.php                常驻 Worker，负责实际调用 AI 生成内容
 │   ├── db_maintenance.php        数据库维护工具
 │   ├── migrate_sqlite_to_pg.php  历史迁移脚本

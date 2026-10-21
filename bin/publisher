@@ -1,0 +1,223 @@
+#!/usr/bin/env php
+<?php
+/**
+ * GEOFlow static publisher.
+ *
+ * Cron and systemd timers should call:
+ *   php bin/publisher run --scheduled
+ * Preview without writing:
+ *   php bin/publisher run --scheduled --dry-run
+ */
+
+declare(strict_types=1);
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "This command must run in CLI mode.\n");
+    exit(1);
+}
+
+define('FEISHU_TREASURE', true);
+require_once __DIR__ . '/../includes/publisher/bootstrap.php';
+require_once __DIR__ . '/../includes/error_response.php';
+
+function publisher_parse_args(array $argv): array
+{
+    $positional = [];
+    $options = [];
+    $count = count($argv);
+    for ($index = 1; $index < $count; $index++) {
+        $argument = (string) $argv[$index];
+        if ($argument === '--') {
+            continue;
+        }
+        if (strncmp($argument, '--', 2) === 0) {
+            $name = substr($argument, 2);
+            if (str_contains($name, '=')) {
+                [$name, $value] = explode('=', $name, 2);
+                $options[$name] = $value;
+                continue;
+            }
+            $next = $argv[$index + 1] ?? null;
+            if (!is_string($next) || strncmp($next, '--', 2) === 0) {
+                $options[$name] = 'true';
+                continue;
+            }
+            $options[$name] = $next;
+            $index++;
+            continue;
+        }
+        $positional[] = $argument;
+    }
+
+    return [$positional, $options];
+}
+
+function publisher_usage(): string
+{
+    return <<<'TXT'
+Usage:
+  publisher init --site SITE --name NAME --base-url https://example.com [--timezone UTC] [--root PATH]
+  publisher import --site SITE --file drafts.json [--dry-run] [--root PATH]
+  publisher review --site SITE --id ITEM
+  publisher schedule --site SITE --id ITEM --at 2026-10-21T18:00:00Z
+  publisher publish --site SITE --id ITEM [--dry-run]
+  publisher run --scheduled [--dry-run|--preview] [--site SITE] [--root PATH] [--now ISO8601]
+
+Secrets and site roots come from the environment:
+  PUBLISHER_SITES_ROOT   directory that holds one subdirectory per site
+TXT;
+}
+
+function publisher_root(array $options): string
+{
+    if (!empty($options['root']) && $options['root'] !== 'true') {
+        return (string) $options['root'];
+    }
+    $fromEnv = getenv('PUBLISHER_SITES_ROOT');
+    if (is_string($fromEnv) && trim($fromEnv) !== '') {
+        return trim($fromEnv);
+    }
+    return dirname(__DIR__) . '/data/publisher-sites';
+}
+
+function publisher_clock(array $options): PublisherClock
+{
+    if (empty($options['now']) || $options['now'] === 'true') {
+        return new SystemPublisherClock();
+    }
+    try {
+        return new FrozenPublisherClock(new DateTimeImmutable((string) $options['now']));
+    } catch (Throwable $e) {
+        throw new PublisherException('Clock value is invalid', 'validation_failed');
+    }
+}
+
+function publisher_flag(array $options, string $name): bool
+{
+    return array_key_exists($name, $options);
+}
+
+function publisher_require(array $options, string $name): string
+{
+    $value = trim((string) ($options[$name] ?? ''));
+    if ($value === '' || $value === 'true') {
+        throw new PublisherException('Missing required option --' . $name, 'validation_failed');
+    }
+    return $value;
+}
+
+function publisher_emit(array $payload, int $exitCode): int
+{
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    $stream = $exitCode === 0 ? STDOUT : STDERR;
+    fwrite($stream, ($json === false ? '{"ok":false}' : $json) . "\n");
+    return $exitCode;
+}
+
+function publisher_load_import(string $file): array
+{
+    if ($file === '' || !is_file($file)) {
+        throw new PublisherException('Import file was not found', 'validation_failed');
+    }
+    $raw = file_get_contents($file);
+    if ($raw === false) {
+        throw new PublisherException('Import file could not be read', 'validation_failed');
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        throw new PublisherException('Import file is not valid JSON', 'validation_failed');
+    }
+    $items = $decoded['items'] ?? $decoded;
+    if (!is_array($items) || array_is_list($items) === false) {
+        throw new PublisherException('Import file must contain a list of items', 'validation_failed');
+    }
+    return $items;
+}
+
+function publisher_safe_message(Throwable $e): string
+{
+    $message = $e instanceof PublisherException ? trim($e->getMessage()) : 'Publisher command failed';
+    if ($message === '' || geoflow_error_text_is_sensitive($message)) {
+        return 'Publisher command failed';
+    }
+    return $message;
+}
+
+[$positional, $options] = publisher_parse_args($argv);
+$command = $positional[0] ?? 'help';
+
+if (in_array($command, ['help', '-h'], true) || publisher_flag($options, 'help')) {
+    fwrite(STDOUT, publisher_usage() . "\n");
+    exit(0);
+}
+
+try {
+    $publisher = new Publisher(publisher_root($options), publisher_clock($options));
+    $dryRun = publisher_flag($options, 'dry-run') || publisher_flag($options, 'preview');
+
+    if ($command === 'init') {
+        $config = $publisher->initSite(
+            publisher_require($options, 'site'),
+            publisher_require($options, 'name'),
+            publisher_require($options, 'base-url'),
+            (string) (($options['timezone'] ?? '') !== '' && $options['timezone'] !== 'true' ? $options['timezone'] : 'UTC')
+        );
+        exit(publisher_emit(['ok' => true, 'site' => $config], 0));
+    }
+
+    if ($command === 'import') {
+        $items = publisher_load_import(publisher_require($options, 'file'));
+        $result = $publisher->importDrafts(publisher_require($options, 'site'), $items, $dryRun);
+        exit(publisher_emit(['ok' => true, 'result' => $result], 0));
+    }
+
+    if ($command === 'review') {
+        $item = $publisher->review(publisher_require($options, 'site'), publisher_require($options, 'id'));
+        exit(publisher_emit(['ok' => true, 'item' => $item], 0));
+    }
+
+    if ($command === 'schedule') {
+        $item = $publisher->schedule(
+            publisher_require($options, 'site'),
+            publisher_require($options, 'id'),
+            new DateTimeImmutable(publisher_require($options, 'at'))
+        );
+        exit(publisher_emit(['ok' => true, 'item' => $item], 0));
+    }
+
+    if ($command === 'publish') {
+        $result = $publisher->publish(
+            publisher_require($options, 'site'),
+            [publisher_require($options, 'id')],
+            $dryRun
+        );
+        exit(publisher_emit(['ok' => true, 'result' => $result], 0));
+    }
+
+    if ($command === 'run') {
+        if (!publisher_flag($options, 'scheduled')) {
+            fwrite(STDERR, publisher_usage() . "\n");
+            exit(2);
+        }
+        $site = $options['site'] ?? null;
+        if ($site === 'true' || $site === '') {
+            $site = null;
+        }
+        $result = $publisher->runScheduled(is_string($site) ? $site : null, $dryRun);
+        exit(publisher_emit(['ok' => true, 'result' => $result], 0));
+    }
+
+    fwrite(STDERR, publisher_usage() . "\n");
+    exit(2);
+} catch (Throwable $e) {
+    $code = $e instanceof PublisherException ? $e->errorCode : 'publisher_error';
+    $errors = $e instanceof PublisherException ? $e->errors : [];
+    exit(publisher_emit([
+        'ok' => false,
+        'error' => [
+            'code' => $code,
+            'message' => publisher_safe_message($e),
+            'errors' => geoflow_redact_public_value($errors),
+        ],
+    ], 1));
+}

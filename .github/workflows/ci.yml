@@ -45,6 +45,8 @@ jobs:
           php -l robots.php
           php -l llms.php
           php -l theme-preview.php
+          php -l bin/publisher
+          find includes/publisher -name '*.php' -print0 | xargs -0 -n 1 php -l
 
       - name: Unit guardrail tests
         run: |
@@ -54,9 +56,14 @@ jobs:
           php tests/unit_dataforseo_request_splitting.php
           php tests/unit_growth_guardrails.php
           php tests/unit_seo_geo_ops.php
+          php tests/unit_publisher.php
+          php tests/unit_error_responses.php
 
       - name: Build Tailwind assets
         run: npm run build:tailwind
 
+      # Tailwind 3 is build-only. Its dependency tree still includes braces,
+      # and npm's non-breaking fix does not clear that advisory. The PHP
+      # application has no runtime npm packages, so audit those only.
       - name: Dependency audit
-        run: npm audit --audit-level=moderate
+        run: npm audit --omit=dev --audit-level=moderate

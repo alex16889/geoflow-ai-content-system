@@ -14,6 +14,7 @@ if (!defined('FEISHU_TREASURE')) {
 
 require_once __DIR__ . '/ai_service.php';
 require_once __DIR__ . '/job_queue_service.php';
+require_once __DIR__ . '/error_response.php';
 
 class TaskService {
     private $db;
@@ -83,7 +84,7 @@ class TaskService {
             
         } catch (Exception $e) {
             write_log("创建任务失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -129,7 +130,7 @@ class TaskService {
             
         } catch (Exception $e) {
             write_log("更新任务失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -199,7 +200,7 @@ class TaskService {
             
         } catch (Exception $e) {
             write_log("获取任务列表失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -236,7 +237,7 @@ class TaskService {
             
         } catch (Exception $e) {
             write_log("获取任务详情失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -279,7 +280,7 @@ class TaskService {
         } catch (Exception $e) {
             $this->db->rollBack();
             write_log("删除任务失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -314,7 +315,7 @@ class TaskService {
             
         } catch (Exception $e) {
             write_log("切换任务状态失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -395,7 +396,7 @@ class TaskService {
             
         } catch (Exception $e) {
             write_log("执行任务失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -445,7 +446,7 @@ class TaskService {
             return ['success' => false, 'error' => '没有可用的标题'];
             
         } catch (Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
@@ -546,7 +547,7 @@ class TaskService {
             
         } catch (Exception $e) {
             write_log("保存生成文章失败: " . $e->getMessage(), 'ERROR');
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => geoflow_public_error_message($e, '任务操作失败，请稍后重试')];
         }
     }
     
